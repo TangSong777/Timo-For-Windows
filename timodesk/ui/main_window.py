@@ -876,9 +876,22 @@ class MainWindow(QMainWindow):
         if note.type == "article" and title is not None:
             note.title = title.strip() or None
         self.lib.touch(note_id)
-        self.lib.save()
+        try:
+            self.lib.save()
+        except OSError as exc:  # 磁盘满、目录只读、文件被杀软占用
+            self._save_failed(exc)
+            return
+        self._save_error_shown = False
         self.editor.mark_saved()
         self._refresh_item(note_id)
+
+    def _save_failed(self, exc: OSError) -> None:
+        """写盘失败时不要吞掉：把状态标成未保存，并提示一次原因。"""
+        self.editor.save_state.setText("未保存")
+        if getattr(self, "_save_error_shown", False):
+            return
+        self._save_error_shown = True
+        self._toast("保存失败：磁盘可能已满，或数据目录没有写入权限", 6000)
 
     def save_now(self):
         self._save_timer.stop()
