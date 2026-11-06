@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from PyQt5.QtCore import QMimeData, QPoint, QPointF, QRect, QRectF, QSize, Qt, pyqtSignal
+from PyQt5.QtCore import QMimeData, QPoint, QRect, QRectF, QSize, Qt, pyqtSignal
 from PyQt5.QtGui import QColor, QDrag, QFont, QFontMetrics, QPainter, QPen
 from PyQt5.QtWidgets import QListWidget, QScrollBar, QStyledItemDelegate, QStyle
 

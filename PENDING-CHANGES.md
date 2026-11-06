@@ -51,3 +51,11 @@
 - **内容**：启动时把回收站里删除超过 30 天的笔记彻底删掉（含正文文件），清了多少条用轻提示告知；`settings.json` 的 `trash_days` 设 0 可关闭
 - **文件**：`timodesk/store.py`（`purge_trash`）、`timodesk/app.py`
 - **验证**：`test_trash.py` 8/8
+
+## 2026-11-06 — 移除应用锁
+
+- 按用户要求删掉应用锁：`Settings` 不再有 `lock/set_password/check_password`，`dialogs` 去掉 `UnlockDialog`/`LockDialog`，数据菜单去掉「应用锁…」，启动时不再拦密码。
+- `settings.json` 里旧的 `lock` 键会在下次保存时自然消失，无需迁移。
+- 账号类笔记里的账号/密码字段照旧保留（那是笔记内容）。
+- 顺带清理了 `pyflakes` 报出的几处未用导入与一处 f-string 前缀。
+- 测试：26 个脚本全绿（原 `test_lock.py` 已删除）。

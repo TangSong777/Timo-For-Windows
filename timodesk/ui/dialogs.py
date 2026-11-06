@@ -145,7 +145,7 @@ def error(parent, title: str, text: str) -> None:
 class ReminderDialog(FramelessDialog):
     """设置提醒时间：快捷按钮 + 日期 + 时间。"""
 
-    def __init__(self, parent, when: "datetime | None" = None, has_reminder: bool = False):
+    def __init__(self, parent, when=None, has_reminder: bool = False):
         from datetime import datetime, timedelta
 
         super().__init__(parent, "设置提醒")
@@ -237,161 +237,12 @@ class ReminderDialog(FramelessDialog):
         self.accept()
 
 
-class UnlockDialog(FramelessDialog):
-    """启动时的应用锁：输密码才能进入。"""
-
-    def __init__(self, parent, settings):
-        super().__init__(parent, "Timo For Windows")
-        from PyQt5.QtWidgets import QLineEdit
-
-        self.settings = settings
-        self.setStyleSheet(_BTN_QSS)
-        lay = QVBoxLayout(self.body)
-        lay.setContentsMargins(30, 24, 30, 24)
-        lay.setSpacing(12)
-
-        title = QLabel("已开启应用锁")
-        title.setStyleSheet(f"font-size:16px;font-weight:600;color:{C['ink']};")
-        lay.addWidget(title)
-        tip = QLabel("输入密码后进入。")
-        tip.setStyleSheet(f"color:{C['muted']};font-size:12px;")
-        lay.addWidget(tip)
-
-        self.pwd = QLineEdit()
-        self.pwd.setEchoMode(QLineEdit.Password)
-        self.pwd.setPlaceholderText("密码")
-        self.pwd.setStyleSheet(
-            f"QLineEdit{{background:{C['card']};border:1px solid {C['line']};border-radius:8px;"
-            f"padding:8px 10px;font-size:14px;}}"
-            f"QLineEdit:focus{{border-color:{C['ink']};}}"
-        )
-        self.pwd.returnPressed.connect(self._try)
-        lay.addWidget(self.pwd)
-
-        self.err = QLabel("")
-        self.err.setStyleSheet(f"color:{C['ink']};font-size:12px;")
-        lay.addWidget(self.err)
-
-        row = QHBoxLayout()
-        row.addStretch(1)
-        b_quit = QPushButton("退出")
-        b_quit.setObjectName("Link")
-        b_quit.clicked.connect(self.reject)
-        b_ok = QPushButton("解锁")
-        b_ok.setObjectName("Primary")
-        b_ok.clicked.connect(self._try)
-        row.addWidget(b_quit)
-        row.addWidget(b_ok)
-        lay.addLayout(row)
-
-        self.setFixedWidth(380)
-        self.adjustSize()
-        self.add_edge()
-
-    def _try(self):
-        if self.settings.check_password(self.pwd.text()):
-            self.accept()
-        else:
-            self.err.setText("密码不对，再试一次。")
-            self.pwd.selectAll()
-            self.pwd.setFocus()
-
-
-class LockDialog(FramelessDialog):
-    """设置 / 修改 / 关闭应用锁。"""
-
-    def __init__(self, parent, settings):
-        super().__init__(parent, "应用锁")
-        from PyQt5.QtWidgets import QLineEdit
-
-        self.settings = settings
-        self.changed = False
-        self.old_enabled = settings.lock_enabled()
-        self.setStyleSheet(_BTN_QSS)
-
-        lay = QVBoxLayout(self.body)
-        lay.setContentsMargins(28, 20, 28, 20)
-        lay.setSpacing(10)
-
-        style = (
-            f"QLineEdit{{background:{C['card']};border:1px solid {C['line']};border-radius:8px;"
-            f"padding:8px 10px;font-size:13px;}}"
-            f"QLineEdit:focus{{border-color:{C['ink']};}}"
-        )
-
-        def add_pwd(placeholder: str):
-            e = QLineEdit()
-            e.setEchoMode(QLineEdit.Password)
-            e.setPlaceholderText(placeholder)
-            e.setStyleSheet(style)
-            lay.addWidget(e)
-            return e
-
-        tip = QLabel("应用锁只拦在本机打开程序的人；数据本身不加密，别把 Data 目录发给别人。")
-        tip.setWordWrap(True)
-        tip.setStyleSheet(f"color:{C['muted']};font-size:12px;")
-        lay.addWidget(tip)
-
-        self.cur = add_pwd("当前密码") if self.old_enabled else None
-        self.new = add_pwd("新密码（至少 4 位）")
-        self.new2 = add_pwd("再输一次新密码")
-        self.err = QLabel("")
-        self.err.setStyleSheet(f"color:{C['ink']};font-size:12px;")
-        lay.addWidget(self.err)
-
-        row = QHBoxLayout()
-        if self.old_enabled:
-            b_off = QPushButton("关闭应用锁")
-            b_off.setObjectName("Link")
-            b_off.clicked.connect(self._turn_off)
-            row.addWidget(b_off)
-        row.addStretch(1)
-        b_cancel = QPushButton("取消")
-        b_cancel.setObjectName("Plain")
-        b_cancel.clicked.connect(self.reject)
-        b_ok = QPushButton("保存")
-        b_ok.setObjectName("Primary")
-        b_ok.clicked.connect(self._save)
-        row.addWidget(b_cancel)
-        row.addWidget(b_ok)
-        lay.addLayout(row)
-
-        self.setMinimumWidth(420)
-        self.adjustSize()
-        self.add_edge()
-
-    def _save(self):
-        if self.cur is not None and not self.settings.check_password(self.cur.text()):
-            self.err.setText("当前密码不对。")
-            return
-        p1, p2 = self.new.text(), self.new2.text()
-        if len(p1) < 4:
-            self.err.setText("新密码至少 4 位。")
-            return
-        if p1 != p2:
-            self.err.setText("两次输入的密码不一致。")
-            return
-        self.settings.set_password(p1)
-        self.changed = True
-        self.accept()
-
-    def _turn_off(self):
-        if self.cur is not None and not self.settings.check_password(self.cur.text()):
-            self.err.setText("要关闭应用锁，需要先输当前密码。")
-            return
-        self.settings.clear_password()
-        self.changed = True
-        self.accept()
-
-
 class BackupDialog(FramelessDialog):
     """备份列表：立即备份、从备份恢复。"""
 
     def __init__(self, parent, lib):
         super().__init__(parent, "备份与恢复")
-        from PyQt5.QtWidgets import QHBoxLayout, QListWidget, QListWidgetItem, QPushButton
-
-        from .. import backup
+        from PyQt5.QtWidgets import QHBoxLayout, QListWidget, QPushButton
 
         self.setStyleSheet(_BTN_QSS)
         self.lib = lib
@@ -510,7 +361,7 @@ class ImportModeDialog(FramelessDialog):
 
     def __init__(self, parent, note_count: int):
         super().__init__(parent, "导入 Timo 数据")
-        from PyQt5.QtWidgets import QHBoxLayout, QPushButton
+        from PyQt5.QtWidgets import QHBoxLayout
 
         self.setStyleSheet(_BTN_QSS)
         self.mode: str | None = None
@@ -571,7 +422,7 @@ class AboutDialog(FramelessDialog):
 
     def __init__(self, parent, lib, version: str):
         super().__init__(parent, "关于")
-        from PyQt5.QtWidgets import QHBoxLayout, QPushButton
+        from PyQt5.QtWidgets import QHBoxLayout
 
         self.setStyleSheet(_BTN_QSS)
         self.setFixedSize(520, 540)

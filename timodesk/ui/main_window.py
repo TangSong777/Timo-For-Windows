@@ -216,7 +216,6 @@ class MainWindow(QMainWindow):
         menu.addAction("导出为 Markdown 文件夹…", self.export_md_tree)
         menu.addAction("打开数据目录", self.open_data_dir)
         menu.addAction("备份与恢复…", self.backup_dialog)
-        menu.addAction("应用锁…", self.lock_settings)
         menu.addSeparator()
         menu.addAction("清空回收站…", self.empty_trash)
         menu.addSeparator()
@@ -988,17 +987,6 @@ class MainWindow(QMainWindow):
             self.editor.set_note(None)
             self.refresh_topics()
             self._reload_notes(animate=True)
-
-    def lock_settings(self):
-        from .dialogs import LockDialog, info
-
-        d = LockDialog(self, self.settings)
-        if not d.exec_() or not d.changed:
-            return
-        if self.settings.lock_enabled():
-            info(self, "应用锁", "已设置密码，下次启动时需要输入。")
-        else:
-            info(self, "应用锁", "已关闭应用锁。")
 
     def open_data_dir(self):
         from PyQt5.QtGui import QDesktopServices

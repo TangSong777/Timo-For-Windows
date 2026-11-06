@@ -1,17 +1,13 @@
-"""本地设置（应用锁等），保存在数据目录的 settings.json。"""
+"""本地设置（窗口位置、排序方式、回收站天数等），保存在数据目录的 settings.json。"""
 from __future__ import annotations
 
-import hashlib
 import json
 import os
-import secrets
 from pathlib import Path
-
-ITERATIONS = 200_000
 
 
 class Settings:
-    """数据目录里的 settings.json：目前只放应用锁。"""
+    """数据目录里的 settings.json：纯本地的小配置，不存密码。"""
 
     def __init__(self, root: Path | str):
         self.root = Path(root)
@@ -45,34 +41,3 @@ class Settings:
         if key in self.data:
             self.data.pop(key, None)
             self.save()
-
-    # ---------------- 应用锁 ----------------
-    @property
-    def lock(self) -> dict | None:
-        v = self.data.get("lock")
-        return v if isinstance(v, dict) and v.get("hash") else None
-
-    def lock_enabled(self) -> bool:
-        return self.lock is not None
-
-    def set_password(self, password: str) -> None:
-        salt = secrets.token_hex(16)
-        digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode(), ITERATIONS)
-        self.data["lock"] = {"salt": salt, "hash": digest.hex(), "iterations": ITERATIONS}
-        self.save()
-
-    def check_password(self, password: str) -> bool:
-        lock = self.lock
-        if not lock:
-            return True
-        try:
-            digest = hashlib.pbkdf2_hmac(
-                "sha256", password.encode("utf-8"), lock["salt"].encode(), int(lock.get("iterations", ITERATIONS))
-            )
-        except Exception:
-            return False
-        return secrets.compare_digest(digest.hex(), lock["hash"])
-
-    def clear_password(self) -> None:
-        self.data.pop("lock", None)
-        self.save()

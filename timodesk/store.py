@@ -18,8 +18,6 @@ import time
 import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Iterable
-
 # 笔记类型：与 Timo 导出的 type 名称一致
 INBOX_TOPIC = "（未分类）"
 
@@ -48,7 +46,7 @@ def now_iso() -> str:
 
 def to_iso(dt) -> str:
     """本地 datetime → Timo 风格 UTC ISO（毫秒 + Z）。"""
-    from datetime import datetime, timezone
+    from datetime import timezone
 
     if dt.tzinfo is None:
         dt = dt.astimezone()
@@ -73,7 +71,7 @@ def parse_iso(s: str | None) -> float:
     if not s:
         return 0.0
     try:
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         txt = s.replace("Z", "+00:00")
         # 兼容没有毫秒/时区的写法

@@ -103,7 +103,7 @@ class WelcomeDialog(FramelessDialog):
         self.setWindowTitle("欢迎使用 Timo 桌面版")
         self.setFixedSize(560, 462)
         self.setStyleSheet(
-            f"""
+            """
             #DialogBody {{ background:#ffffff; }}
             QLabel#Big {{ font-size:30px; color:#1f1f1f; font-weight:600; }}
             QLabel#Sub {{ color:#737373; font-size:13px; }}
@@ -231,12 +231,6 @@ def run():
     _schedule_delete(delete_targets)
 
     settings = Settings(root)
-    if settings.lock_enabled():
-        from .ui.dialogs import UnlockDialog
-
-        if UnlockDialog(None, settings).exec_() != QDialog.Accepted:
-            return 0
-
     lib = Library(root).load()
 
     cli = next((a for a in args if a and Path(a).exists()), "")
