@@ -103,6 +103,21 @@ class ImportCanceled(Exception):
     """用户在导入进度条上点了取消。"""
 
 
+def _search_icon():
+    """放大镜：1.6px 线条，跟着 muted 色走。"""
+    from PyQt5.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
+
+    pm = QPixmap(16, 16)
+    pm.fill(Qt.transparent)
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.Antialiasing, True)
+    p.setPen(QPen(QColor(C["muted"]), 1.6))
+    p.drawEllipse(2, 2, 9, 9)
+    p.drawLine(10, 10, 14, 14)
+    p.end()
+    return QIcon(pm)
+
+
 class MainWindow(QMainWindow):
     def __init__(self, lib: Library, parent=None):
         super().__init__(parent)
@@ -170,7 +185,7 @@ class MainWindow(QMainWindow):
         for key, label, icon in (("all", "全部笔记", "▤"), ("archived", "归档", "▣"), ("trash", "回收站", "♲")):
             it = QListWidgetItem(f"{icon}  {label}")
             it.setData(Qt.UserRole, key)
-            it.setSizeHint(QSize(0, 32))
+            it.setSizeHint(QSize(0, 38))
             self.nav.addItem(it)
         self.nav.currentRowChanged.connect(self._on_nav_changed)
         sb.addWidget(self.nav)
@@ -281,6 +296,8 @@ class MainWindow(QMainWindow):
 
         self.search = QLineEdit(objectName="Search")
         self.search.setPlaceholderText("搜索笔记…  Ctrl+F")
+        self.search.addAction(_search_icon(), QLineEdit.LeadingPosition)
+        self.search.setTextMargins(4, 0, 0, 0)
         self.search.setClearButtonEnabled(True)
         self.search.textChanged.connect(self._on_search_changed)
         lp.addWidget(self.search)

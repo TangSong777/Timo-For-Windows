@@ -9,12 +9,12 @@ from __future__ import annotations
 
 C = {
     # 画布与卡片
-    "canvas": "#ededf0",
+    "canvas": "#f1f1f2",
     "paper": "#ffffff",
     "paper_alt": "#fafafb",
     "card": "#ffffff",
     "card_hover": "#f8f8fa",
-    "card_border": "#ebebed",
+    "card_border": "#ececee",
     "card_border_strong": "#dedee2",
     # 文字
     "ink": "#1d1d1f",
@@ -98,7 +98,12 @@ QWidget {{
 QMainWindow, #Root, #Body {{ background: {C['canvas']}; }}
 
 /* ---------- 卡片容器 ---------- */
-#Sidebar, #ListPane, #EditorPane {{
+#Sidebar {{
+    background: #fafafb;
+    border: 1px solid {C['card_border']};
+    border-radius: 16px;
+}}
+#ListPane, #EditorPane {{
     background: {C['card']};
     border: 1px solid {C['card_border']};
     border-radius: 16px;
@@ -121,14 +126,15 @@ QMainWindow, #Root, #Body {{ background: {C['canvas']}; }}
 #NewTopicBtn:hover {{ border-color: {C['card_border_strong']}; color: {C['ink']}; background: #f2f2f5; }}
 
 QListWidget#TopicList, QListWidget#NavList {{
-    background: {C['card']}; border: none;
+    background: transparent; border: none;
 }}
 QListWidget#NavList::item {{
-    border-radius: 9px; padding: 8px 9px; margin: 1px 3px;
+    border-radius: 10px; padding: 10px 12px; margin: 2px 4px;
+    color: {C['ink_soft']};
 }}
 QListWidget#NavList::item:selected {{
-    background: #ececee; color: {C['ink']};
-    border-left: 2px solid {C['ink']};
+    background: {C['card']}; color: {C['ink']};
+    border: 1px solid {C['card_border_strong']};
 }}
 QListWidget#NavList::item:hover {{
     background: {C['card_hover']};
@@ -140,12 +146,12 @@ QListWidget#Wall::item:hover {{ background: #f4f4f6; }}
 QListWidget#Wall::item:selected {{ background: #eaeaec; }}
 
 /* ---------- 中栏 ---------- */
-#ListHeader {{ font-size: {int(15 * s)}px; font-weight: 600; color: {C['ink']}; }}
+#ListHeader {{ font-size: {int(18 * s)}px; font-weight: 600; color: {C['ink']}; letter-spacing: 0.2px; }}
 #CountLabel {{ color: {C['faint']}; font-size: {int(11 * s)}px; }}
 
 QLineEdit#Search {{
-    background: #f5f5f7; border: 1px solid transparent; border-radius: 11px;
-    padding: 9px 13px; selection-background-color: {C['ink']}; selection-color: #fff;
+    background: #f4f4f5; border: 1px solid transparent; border-radius: 12px;
+    padding: 9px 14px; selection-background-color: {C['ink']}; selection-color: #fff;
 }}
 QLineEdit#Search:focus {{ background: {C['card']}; border: 1px solid {C['ink']}; }}
 
@@ -160,7 +166,7 @@ QFrame#FindBar QToolButton:hover {{ background: #efeff1; color: {C['ink']}; }}
 #FindCount {{ color: {C['muted']}; font-size: {int(11 * s)}px; }}
 
 #ListEmpty {{ color: {C['faint']}; font-size: {int(12 * s)}px; line-height:1.6; }}
-QListWidget#NoteList {{ background: {C['card']}; border: none; padding: 2px; }}
+QListWidget#NoteList {{ background: {C['card']}; border: none; padding: 4px 2px; }}
 QListWidget#NoteList::item {{ border: none; margin: 0px; }}
 
 QPushButton#NewNoteBtn {{
@@ -196,7 +202,7 @@ QToolButton#NewTypeBtn::menu-indicator {{ image: none; width: 0px; }}
 
 QLineEdit#NoteTitle {{
     background: transparent; border: none; padding: 2px 0;
-    font-family: {FONT_TEXT}; font-size: {int(22 * s)}px; font-weight: 500; color: {C['ink']};
+    font-family: {FONT_TEXT}; font-size: {int(24 * s)}px; font-weight: 500; color: {C['ink']};
 }}
 QLineEdit#NoteTitle::placeholder {{ color: {C['faint']}; }}
 QLineEdit#NoteTitle:focus {{ border-bottom: 1px solid {C['card_border']}; }}

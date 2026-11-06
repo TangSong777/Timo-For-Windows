@@ -59,3 +59,13 @@
 - 账号类笔记里的账号/密码字段照旧保留（那是笔记内容）。
 - 顺带清理了 `pyflakes` 报出的几处未用导入与一处 f-string 前缀。
 - 测试：26 个脚本全绿（原 `test_lock.py` 已删除）。
+
+## 2026-11-06 — 界面向 Pogget 风格靠拢（仍黑白灰）
+
+- 侧栏从「白色卡片」改为浅灰 `#fafafb`，导航项与主题项改用**白胶囊选中**（1px 边 + 10px 圆角），去掉原来的左侧黑色指示条。
+- 字号放大一档：中栏标题 15→18px、笔记卡片标题 14→15px、正文 12px、meta 11px、编辑器标题 22→24px。
+- 笔记卡片：高度 100px、圆角 14、边框 `#ececee`、阴影更淡；列表内边距调整后卡片间距更均匀。
+- 搜索框：高度降一档、加**自绘放大镜图标**（`_search_icon()`，1.6px 线条）。
+- 画布色 `#ededf0 → #f1f1f2`，面板边框更淡；`QListWidget#NavList/#TopicList` 背景透明，让侧栏底色透出来。
+- 截图重新生成（`docs/screenshot-main.png`、`docs/screenshot-archived.png`），`tools/shot-docs.py` 增加了截图前 `scrollToTop()`。
+- 测试：UI 相关 6 个脚本全通过（ui 20、hl 8、window 7、sort 9、view_restore 7、core 13）。

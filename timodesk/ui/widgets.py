@@ -78,7 +78,7 @@ class NoteCardDelegate(QStyledItemDelegate):
         painter.setRenderHint(QPainter.Antialiasing, True)
         painter.fillRect(option.rect, QColor(C["card"]))
 
-        r = option.rect.adjusted(7, 4, -7, -7)
+        r = option.rect.adjusted(7, 5, -7, -5)
         selected = bool(option.state & QStyle.State_Selected)
         hovered = bool(option.state & QStyle.State_MouseOver)
 
@@ -93,9 +93,9 @@ class NoteCardDelegate(QStyledItemDelegate):
         )
 
         if selected:
-            bg, border = QColor("#e9e9ec"), QColor("#c3c3ca")
+            bg, border = QColor("#f4f4f6"), QColor("#dedee2")
         elif hovered:
-            bg, border = QColor("#fbfbfc"), QColor("#dcdce1")
+            bg, border = QColor("#fbfbfc"), QColor("#eaeaed")
         else:
             bg, border = QColor(C["card"]), QColor(C["card_border"])
         painter.setBrush(bg)
@@ -115,7 +115,7 @@ class NoteCardDelegate(QStyledItemDelegate):
         title = note.display_title(content)
 
         f_title = QFont(option.font)
-        f_title.setPixelSize(14)
+        f_title.setPixelSize(15)
         f_title.setWeight(QFont.DemiBold)
         painter.setFont(f_title)
         painter.setPen(QColor(C["ink"]))
@@ -152,7 +152,7 @@ class NoteCardDelegate(QStyledItemDelegate):
 
         painter.setPen(QColor(C["faint"]))
         f_meta = QFont(option.font)
-        f_meta.setPixelSize(10)
+        f_meta.setPixelSize(11)
         painter.setFont(f_meta)
         fm_meta = QFontMetrics(f_meta)
         meta = f"{_TYPE_MARK.get(note.type, '')} · {human_time(note.updated_at or note.created_at)}"
@@ -197,7 +197,7 @@ class TopicDelegate(QStyledItemDelegate):
         self.lib = lib
 
     def sizeHint(self, option, index) -> QSize:
-        return QSize(180, 34)
+        return QSize(180, 36)
 
     def paint(self, painter: QPainter, option, index):
         topic = index.data(Qt.UserRole)
@@ -205,14 +205,18 @@ class TopicDelegate(QStyledItemDelegate):
             return
         painter.save()
         painter.setRenderHint(QPainter.Antialiasing, True)
-        painter.fillRect(option.rect, QColor(C["card"]))
-        r = option.rect.adjusted(4, 1, -6, -1)
+        painter.fillRect(option.rect, QColor("#fafafb"))
+        r = option.rect.adjusted(4, 2, -6, -2)
         selected = bool(option.state & QStyle.State_Selected)
         hovered = bool(option.state & QStyle.State_MouseOver)
-        if selected or hovered:
+        if selected:
+            painter.setPen(QPen(QColor("#e6e6e9"), 1))
+            painter.setBrush(QColor("#ffffff"))
+            painter.drawRoundedRect(r, 10, 10)
+        elif hovered:
             painter.setPen(Qt.NoPen)
-            painter.setBrush(QColor(C["green_soft"] if selected else C["card"]))
-            painter.drawRoundedRect(r, 8, 8)
+            painter.setBrush(QColor("#f2f2f4"))
+            painter.drawRoundedRect(r, 10, 10)
         if selected:
             painter.setPen(Qt.NoPen)
             painter.setBrush(QColor(C["ink"]))
@@ -222,7 +226,7 @@ class TopicDelegate(QStyledItemDelegate):
 
         archived = getattr(topic, "state", "active") == "archived"
         name_font = QFont(option.font)
-        name_font.setPixelSize(13)
+        name_font.setPixelSize(14)
         name_font.setWeight(QFont.DemiBold if selected else QFont.Normal)
         painter.setFont(name_font)
         painter.setPen(QColor(C["green_dark"] if selected else (C["faint"] if archived else C["ink"])))
