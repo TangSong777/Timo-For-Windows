@@ -1,6 +1,8 @@
 """自绘对话框：消息、确认、进度。全部无边框，与主窗口风格一致。"""
 from __future__ import annotations
 
+from pathlib import Path
+
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
     QHBoxLayout,
@@ -550,3 +552,80 @@ class ImportModeDialog(FramelessDialog):
     def _pick(self, mode: str):
         self.mode = mode
         self.accept()
+
+
+class AboutDialog(FramelessDialog):
+    """关于：版本、数据统计、快捷键。"""
+
+    SHORTCUTS = [
+        ("Ctrl+N", "新建笔记"),
+        ("Ctrl+Shift+N", "新建主题"),
+        ("Ctrl+F", "搜索全部笔记（光标在正文里则在本篇内查找）"),
+        ("Ctrl+S", "立即保存"),
+        ("Ctrl+E", "编辑 / 分屏 / 预览切换"),
+        ("Ctrl+B / I / K", "粗体、斜体、插入链接"),
+        ("Ctrl+Shift+T", "待办清单"),
+        ("Esc", "关闭查找条"),
+        ("双击标题栏", "最大化 / 还原"),
+    ]
+
+    def __init__(self, parent, lib, version: str):
+        super().__init__(parent, "关于")
+        from PyQt5.QtWidgets import QHBoxLayout, QPushButton
+
+        self.setStyleSheet(_BTN_QSS)
+        self.setFixedSize(520, 540)
+
+        lay = QVBoxLayout(self.body)
+        lay.setContentsMargins(32, 24, 32, 22)
+        lay.setSpacing(10)
+
+        title = QLabel("Timo For Windows")
+        title.setStyleSheet(f"font-size:19px;font-weight:600;color:{C['ink']};")
+        lay.addWidget(title)
+
+        sub = QLabel(f"版本 {version} · Windows 本地笔记，数据只在自己电脑上")
+        sub.setStyleSheet(f"color:{C['muted']};font-size:12px;")
+        lay.addWidget(sub)
+
+        notes = [n for n in lib.notes.values() if n.state != "trash"]
+        topics = [t for t in lib.topics.values() if t.state != "trash"]
+        chars = sum(len(lib.content(n.id)) for n in notes)
+        att = len([p for p in lib.attachments_dir.glob("*") if p.is_file()]) if lib.attachments_dir.exists() else 0
+
+        stat = QLabel(f"{len(topics)} 个主题 · {len(notes)} 条笔记 · {att} 个附件 · 约 {chars:,} 字")
+        stat.setStyleSheet(
+            f"background:#fafafb;border:1px solid {C['card_border']};border-radius:10px;"
+            f"padding:11px 14px;color:{C['ink']};font-size:13px;"
+        )
+        lay.addWidget(stat)
+
+        lab = QLabel("快捷键")
+        lab.setStyleSheet(f"color:{C['muted']};font-size:11px;margin-top:6px;")
+        lay.addWidget(lab)
+        for key, desc in self.SHORTCUTS:
+            row = QHBoxLayout()
+            row.setSpacing(10)
+            k = QLabel(key)
+            k.setFixedWidth(120)
+            k.setStyleSheet(
+                f"color:{C['ink']};font-size:12px;font-family:'Consolas','Microsoft YaHei UI';"
+                f"background:#f5f5f7;border-radius:6px;padding:3px 8px;"
+            )
+            row.addWidget(k)
+            d = QLabel(desc)
+            d.setStyleSheet(f"color:{C['ink_soft']};font-size:12px;")
+            row.addWidget(d, 1)
+            lay.addLayout(row)
+
+        lay.addStretch(1)
+        bottom = QHBoxLayout()
+        path = QLabel(f"数据目录：{Path(lib.root).resolve()}")
+        path.setStyleSheet(f"color:{C['faint']};font-size:11px;")
+        path.setToolTip(str(lib.root))
+        path.setMinimumWidth(10)
+        bottom.addWidget(path, 1)
+        btn = _button("好", "Primary")
+        btn.clicked.connect(self.accept)
+        bottom.addWidget(btn)
+        lay.addLayout(bottom)

@@ -898,15 +898,9 @@ class MainWindow(QMainWindow):
     def show_about(self):
         from timodesk import __version__
 
-        info(
-            self,
-            "关于 Timo For Windows",
-            f"<h3>Timo For Windows {__version__}</h3>"
-            "<p>Windows 本地笔记软件，可导入 Timo（Android）导出的数据包，"
-            "数据全部保存在本机，不需要账号，也不联网。</p>"
-            f"<p style='color:{C['muted']}'>数据目录：{self.lib.root}</p>"
-            "<p>笔记以 Markdown 文件保存，随时可以导出为 Timo 兼容的 ZIP。</p>",
-        )
+        from .dialogs import AboutDialog
+
+        AboutDialog(self, self.lib, __version__).exec_()
 
     def _restore_geometry(self):
         try:
