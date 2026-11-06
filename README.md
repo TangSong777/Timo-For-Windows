@@ -10,6 +10,7 @@
 ## 下载
 
 安装包约 104 MB，解开后约 128 MB，双击就能用，不写注册表。
+**Release 里放的就是这个 `.exe`**：下载 → 双击 → 选位置 → 解压 → 自动打开并删掉安装包，之后用文件夹里的 `Timo For Windows.exe`。
 
 到 [Releases](../../releases/latest) 下载 **`Timo For Windows 安装包.exe`**。
 

@@ -6,7 +6,7 @@
 前置：先跑 `python tools/make-portable.py` 打出 `dist/Timo For Windows 安装包.exe`。
 
 产物（dist/release/<版本>/）：
-    Timo For Windows 安装包.exe
+    TimoForWindows-<版本>.exe   ← 资产名用 ASCII，避免 GitHub 把中文替换成点
     SHA256SUMS.txt
 """
 from __future__ import annotations
@@ -18,7 +18,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "dist" / "Timo For Windows 安装包.exe"
-ASSET = "Timo For Windows 安装包.exe"
+
+
+def asset_name(version: str) -> str:
+    return f"TimoForWindows-{version}.exe"
 
 
 def project_version() -> str:
@@ -37,7 +40,7 @@ def sha256(path: Path) -> str:
 
 def main() -> int:
     if len(sys.argv) != 2:
-        print("用法: python tools/make-release.py <版本号，如 0.2.0>")
+        print("用法: python tools/make-release.py <版本号，如 0.2.1>")
         return 2
     version = sys.argv[1].lstrip("v")
     if version != project_version():
@@ -49,14 +52,15 @@ def main() -> int:
 
     out_dir = ROOT / "dist" / "release" / version
     out_dir.mkdir(parents=True, exist_ok=True)
-    target = out_dir / ASSET
+    asset = asset_name(version)
+    target = out_dir / asset
     if target.exists():
         target.unlink()
     shutil.copy2(SRC, target)
 
     digest = sha256(target)
     (out_dir / "SHA256SUMS.txt").write_text(
-        f"{digest}  {ASSET}\n", encoding="utf-8", newline="\n"
+        f"{digest}  {asset}\n", encoding="utf-8", newline="\n"
     )
     print(f"{target}  {target.stat().st_size / 1048576:.1f} MB")
     print(f"SHA256 {digest}")
