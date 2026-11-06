@@ -19,9 +19,10 @@ from PyQt5.QtCore import (
     QSize,
     Qt,
     QTimer,
+    QUrl,
     pyqtSignal,
 )
-from PyQt5.QtGui import QFont, QImage, QPixmap
+from PyQt5.QtGui import QDesktopServices, QFont, QImage, QPixmap, QTextCursor
 from PyQt5.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -46,7 +47,7 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from ..render import render
+from ..render import TASK_RE, render
 from ..store import TYPE_LABELS, Library, Note
 from .theme import C, NOTE_COLORS, color_icon
 from .widgets import AutoFadeScrollBar
@@ -323,6 +324,8 @@ class NoteEditor(QWidget):
         self.edit.imageDropped.connect(self._insert_image_file)
         self.preview = QTextBrowser(objectName="Preview")
         self.preview.setOpenExternalLinks(True)
+        self.preview.setOpenLinks(False)
+        self.preview.anchorClicked.connect(self._on_anchor)
         self.preview.setFrameShape(QFrame.NoFrame)
         self.splitter.addWidget(self.edit)
         self.splitter.addWidget(self.preview)
@@ -743,6 +746,11 @@ class NoteEditor(QWidget):
             n.title = self.title_edit.text().strip() or None
         if n.type == "link":
             n.url = self.url_edit.text() or None
+            n.description = self.link_desc.toPlainText().strip() or None
+        elif n.type == "gallery":
+            n.description = self.gallery_desc.toPlainText().strip() or None
+        elif n.type == "date":
+            n.description = self.date_desc.toPlainText().strip() or None
         elif n.type == "account":
             n.account = self.account_edit.text()
             n.password = self.password_edit.text()
@@ -869,8 +877,6 @@ class NoteEditor(QWidget):
             self.edit.setFocus()
 
     def _open_url(self):
-        from PyQt5.QtCore import QUrl
-        from PyQt5.QtGui import QDesktopServices
 
         u = self.url_edit.text().strip()
         if not u:
@@ -927,6 +933,35 @@ class NoteEditor(QWidget):
         self.metaChanged.emit()
 
     # ================= 预览 =================
+    def _on_anchor(self, url: QUrl):
+        """预览里的链接：待办方框就地勾选，其余链接交给系统浏览器。"""
+        if url.scheme() == "todo":
+            try:
+                self._toggle_todo(int(url.path()))
+            except (TypeError, ValueError):
+                pass
+            return
+        if url.scheme() in ("http", "https", "mailto"):
+            QDesktopServices.openUrl(url)
+
+    def _toggle_todo(self, lineno: int):
+        """把正文第 lineno 行的 [ ] / [x] 翻过来（保留撤销栈）。"""
+        text = self.edit.toPlainText()
+        lines = text.split("\n")
+        if not (0 <= lineno < len(lines)):
+            return
+        m = TASK_RE.match(lines[lineno])
+        if not m:
+            return
+        checked = m.group(2).lower() == "x"
+        offset = sum(len(x) + 1 for x in lines[:lineno]) + m.start(2)
+        cur = QTextCursor(self.edit.document())
+        cur.setPosition(offset)
+        cur.setPosition(offset + 1, QTextCursor.KeepAnchor)
+        cur.insertText(" " if checked else "x")
+        self._emit()
+        self._refresh_preview()
+
     def _refresh_preview(self):
         if not self.note:
             return

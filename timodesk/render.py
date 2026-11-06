@@ -12,11 +12,33 @@ from pathlib import Path
 import markdown
 
 TASK_RE = re.compile(r"^(\s*(?:[-*+]|\d+\.)\s+)\[([ xX])\]\s+", re.M)
+LIST_RE = re.compile(r"^\s*(?:[-*+]|\d+\.)\s+")
 
 
 def _render_tasks(text: str) -> str:
-    """把 - [ ] / - [x] 变成可读的方框符号（预览不可交互）。"""
-    return TASK_RE.sub(lambda m: f"{m.group(1)}{'☑' if m.group(2).lower() == 'x' else '☐'} ", text)
+    """把 - [ ] / - [x] 变成可点击的方框（点击回写原文，和手机上的待办一样）。
+
+    便签里经常是「标题」下一行直接接列表，Markdown 默认认不出来，
+    这里顺手补一个空行。行号始终按原文计算，点击方框才能回到正确的行。
+    """
+    lines = text.split("\n")
+    out = []
+    for lineno, line in enumerate(lines):
+        m = TASK_RE.match(line)
+        if m:
+            box = "☑" if m.group(2).lower() == "x" else "☐"
+            item = f'{m.group(1)}<a class="todo" href="todo:{lineno}">{box}</a> {line[m.end():]}'
+        else:
+            item = line
+        if (
+            LIST_RE.match(item)
+            and lineno > 0
+            and lines[lineno - 1].strip()
+            and not LIST_RE.match(lines[lineno - 1])
+        ):
+            out.append("")
+        out.append(item)
+    return "\n".join(out)
 
 
 def _abs_images(html_text: str, root: Path) -> str:
@@ -44,6 +66,7 @@ h2 { font-size:19px; font-weight:600; margin:18px 0 8px; }
 h3 { font-size:16px; font-weight:600; margin:14px 0 6px; color:#3f3f3f; }
 p { margin: 8px 0; }
 a { color:#1f1f1f; text-decoration:underline; text-decoration-color:#c9c9c9; }
+a.todo { text-decoration:none; }\nli { margin:4px 0; }
 blockquote { margin:10px 0; padding:6px 14px; border-left:3px solid #d6d6d6; color:#5c5c5c;
              background:#f7f7f7; border-radius:0 8px 8px 0; }
 code { background:#f2f2f2; padding:1px 5px; border-radius:4px;

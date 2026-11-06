@@ -52,7 +52,7 @@ def note_markdown(n: Note, content: str) -> str:
         lines = [f"# {n.title or ''}", "", f"- 日期类型：{t}", f"- 农历：{lunar}"]
         if d.get("type") != 1:
             lines.append(f"- 年：{d.get('year')}")
-        lines += [f"- 月：{d.get('month')}", f"- 日：{d.get('dayOfMonth')}"]
+        lines += [f"- 月：{d.get('month')}", f"- 日：{d.get('dayOfMonth') or d.get('day')}"]
         return "\n".join(lines) + "\n"
     if n.type == "account":
         return f"# {n.title or ''}\n\n- 账号：{n.account}\n- 密码：{n.password}\n- 备注：{n.remark}\n"
@@ -144,7 +144,7 @@ def export_zip(lib: Library, out: str | Path) -> tuple[Path, dict]:
         elif n.type == "date":
             d = n.date or {}
             ext = {
-                "dayOfMonth": d.get("dayOfMonth", 1),
+                "dayOfMonth": d.get("dayOfMonth") or d.get("day") or 1,
                 "dayOfWeek": d.get("dayOfWeek", -1),
                 "isLunar": bool(d.get("isLunar")),
                 "month": d.get("month", 1),

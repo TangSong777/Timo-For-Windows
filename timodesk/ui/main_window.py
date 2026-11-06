@@ -39,7 +39,7 @@ from PyQt5.QtWidgets import (
 
 from ..exporter import export_zip
 from ..importer import import_export
-from ..store import Library, Note
+from ..store import NOTE_TYPES, TYPE_LABELS, Library, Note
 from .dialogs import ProgressDialog, confirm, error, info
 from .editor import NoteEditor
 from .theme import C, NOTE_COLORS, color_icon
@@ -195,6 +195,8 @@ class MainWindow(QMainWindow):
         menu.addAction("导出为 Timo ZIP…", self.export_zip)
         menu.addAction("打开数据目录", self.open_data_dir)
         menu.addSeparator()
+        menu.addAction("清空回收站…", self.empty_trash)
+        menu.addSeparator()
         menu.addAction("关于 Timo 桌面版", self.show_about)
         btn_data.setMenu(menu)
         btn_data.setPopupMode(QToolButton.InstantPopup)
@@ -220,10 +222,26 @@ class MainWindow(QMainWindow):
         self.count_label = QLabel("", objectName="CountLabel")
         head.addWidget(self.count_label, alignment=Qt.AlignBottom)
         head.addStretch(1)
+        newslot = QHBoxLayout()
+        newslot.setContentsMargins(0, 0, 0, 0)
+        newslot.setSpacing(0)
         self.btn_new_note = QPushButton("＋ 新建", objectName="NewNoteBtn")
         self.btn_new_note.setFixedHeight(32)
-        self.btn_new_note.clicked.connect(self.new_note)
-        head.addWidget(self.btn_new_note)
+        self.btn_new_note.setToolTip("新建便签（Ctrl+N）")
+        self.btn_new_note.clicked.connect(lambda: self.new_note("note"))
+        newslot.addWidget(self.btn_new_note)
+        self.btn_new_type = QToolButton(objectName="NewTypeBtn")
+        self.btn_new_type.setText("▾")
+        self.btn_new_type.setToolTip("新建其他类型")
+        self.btn_new_type.setFixedHeight(32)
+        self.btn_new_type.setFixedWidth(26)
+        self.btn_new_type.setPopupMode(QToolButton.InstantPopup)
+        type_menu = QMenu(self)
+        for t in NOTE_TYPES:
+            type_menu.addAction(TYPE_LABELS[t], lambda _=False, tt=t: self.new_note(tt))
+        self.btn_new_type.setMenu(type_menu)
+        newslot.addWidget(self.btn_new_type)
+        head.addLayout(newslot)
         lp.addLayout(head)
 
         self.search = QLineEdit(objectName="Search")
@@ -401,9 +419,19 @@ class MainWindow(QMainWindow):
             title = t.name if t else "主题"
         self.header_label.setText(title)
 
+        delegate = self.note_list.itemDelegate()
+        if delegate is not None:
+            delegate.show_topic = kind in ("all", "archived") or bool(self._search_buf)
+
         notes = self._current_notes()
         if self._search_buf:
-            notes = self.lib.search(self._search_buf, pool=notes)
+            # 搜索和手机版一样是「全库搜索」：当前在回收站里才只搜回收站
+            if kind == "trash":
+                pool = notes
+            else:
+                pool = self.lib.sorted_notes(state="active") + self.lib.sorted_notes(state="archived")
+            notes = self.lib.search(self._search_buf, pool=pool)
+            self.header_label.setText(f"搜索「{self._search_buf}」")
 
         self.note_list.blockSignals(True)
         self.note_list.clear()
@@ -638,6 +666,20 @@ class MainWindow(QMainWindow):
         if self.lib.attachments_dir.exists():
             shutil.copytree(self.lib.attachments_dir, bdir / "attachments")
         return bdir
+
+    def empty_trash(self):
+        """回收站里彻底删掉，和手机版一样有二次确认。"""
+        notes = self.lib.sorted_notes(state="trash")
+        if not notes:
+            info(self, "清空回收站", "回收站是空的。")
+            return
+        if not confirm(self, "清空回收站", f"回收站里的 {len(notes)} 条笔记会被永久删除，无法恢复。继续？"):
+            return
+        for n in notes:
+            self.lib.delete_note(n.id, hard=True)
+        self.lib.save()
+        self.refresh_topics()
+        self._reload_notes(animate=True)
 
     def export_zip(self):
         path, _ = QFileDialog.getSaveFileName(

@@ -65,6 +65,7 @@ class NoteCardDelegate(QStyledItemDelegate):
     def __init__(self, lib, parent=None):
         super().__init__(parent)
         self.lib = lib
+        self.show_topic = False
 
     def sizeHint(self, option, index) -> QSize:
         return QSize(280, 100)
@@ -153,8 +154,16 @@ class NoteCardDelegate(QStyledItemDelegate):
         f_meta = QFont(option.font)
         f_meta.setPixelSize(10)
         painter.setFont(f_meta)
+        fm_meta = QFontMetrics(f_meta)
         meta = f"{_TYPE_MARK.get(note.type, '')} · {human_time(note.updated_at or note.created_at)}"
-        painter.drawText(QRect(left, r.bottom() - 21, width, 16), Qt.AlignLeft | Qt.AlignVCenter, meta)
+        if self.show_topic:
+            topic = self.lib.topics.get(note.topic_id)
+            if topic:
+                meta = f"{topic.name} · {meta}"
+        painter.drawText(
+            QRect(left, r.bottom() - 21, width, 16), Qt.AlignLeft | Qt.AlignVCenter,
+            fm_meta.elidedText(meta, Qt.ElideRight, width),
+        )
         painter.restore()
 
 

@@ -153,11 +153,19 @@ QListWidget#NoteList {{ background: {C['card']}; border: none; padding: 2px; }}
 QListWidget#NoteList::item {{ border: none; margin: 0px; }}
 
 QPushButton#NewNoteBtn {{
-    background: {C['ink']}; color: #ffffff; border: none; border-radius: 10px;
-    padding: 9px 15px; font-weight: 600;
+    background: {C['ink']}; color: #ffffff; border: none;
+    border-radius: 10px 0 0 10px;
+    padding: 9px 14px; font-weight: 600;
 }}
 QPushButton#NewNoteBtn:hover {{ background: #000000; }}
 QPushButton#NewNoteBtn:pressed {{ background: #333333; }}
+QToolButton#NewTypeBtn {{
+    background: {C['ink']}; color: #ffffff; border: none;
+    border-radius: 0 10px 10px 0;
+    font-size: {int(11 * s)}px;
+}}
+QToolButton#NewTypeBtn:hover {{ background: #000000; }}
+QToolButton#NewTypeBtn::menu-indicator {{ image: none; width: 0px; }}
 
 /* ---------- 编辑区 ---------- */
 #EditorTopBar {{ background: {C['card']}; border-bottom: 1px solid {C['line_soft']}; }}
