@@ -91,7 +91,7 @@ from .title_bar import (
     TitleBar,
     rounded_mask,
 )
-from .widgets import AutoFadeScrollBar, NoteCardDelegate, TopicDelegate
+from .widgets import AutoFadeScrollBar, NoteCardDelegate, NoteList, TopicDelegate, TopicList
 
 
 class MainWindow(QMainWindow):
@@ -168,7 +168,7 @@ class MainWindow(QMainWindow):
         sec.addWidget(btn_add_topic)
         sb.addLayout(sec)
 
-        self.topic_list = QListWidget(objectName="TopicList")
+        self.topic_list = TopicList(objectName="TopicList")
         self.topic_list.setVerticalScrollBar(AutoFadeScrollBar(Qt.Vertical, self.topic_list))
         self.topic_list.setItemDelegate(TopicDelegate(self.lib, self))
         self.topic_list.setFrameShape(QListWidget.NoFrame)
@@ -177,6 +177,7 @@ class MainWindow(QMainWindow):
         self.topic_list.setContextMenuPolicy(Qt.CustomContextMenu)
         self.topic_list.customContextMenuRequested.connect(self._topic_menu)
         self.topic_list.currentRowChanged.connect(self._on_topic_changed)
+        self.topic_list.noteDropped.connect(self._on_note_dropped)
         sb.addWidget(self.topic_list, 1)
 
         sb.addSpacing(4)
@@ -250,13 +251,16 @@ class MainWindow(QMainWindow):
         self.search.textChanged.connect(self._on_search_changed)
         lp.addWidget(self.search)
 
-        self.note_list = QListWidget(objectName="NoteList")
+        self.note_list = NoteList(objectName="NoteList")
         self.note_list.setVerticalScrollBar(AutoFadeScrollBar(Qt.Vertical, self.note_list))
         self.note_list.setItemDelegate(NoteCardDelegate(self.lib, self))
         self.note_list.setFrameShape(QListWidget.NoFrame)
         self.note_list.setMouseTracking(True)
         self.note_list.setVerticalScrollMode(QListWidget.ScrollPerPixel)
         self.note_list.setSpacing(0)
+        self.note_list.setSelectionMode(QListWidget.ExtendedSelection)
+        self.note_list.setDragEnabled(True)
+        self.note_list.setDragDropMode(QListWidget.DragOnly)
         self.note_list.setContextMenuPolicy(Qt.CustomContextMenu)
         self.note_list.customContextMenuRequested.connect(self._note_menu)
         self.note_list.currentRowChanged.connect(self._on_note_changed)
@@ -299,6 +303,7 @@ class MainWindow(QMainWindow):
 
     # ---------------- 侧栏 ----------------
     def refresh_topics(self):
+        current = self.view[1] if self.view[0] == "topic" else None
         self.topic_list.blockSignals(True)
         self.topic_list.clear()
         topics = [t for t in self.lib.topics.values() if t.state != "trash"]
@@ -308,6 +313,11 @@ class MainWindow(QMainWindow):
             it.setData(Qt.UserRole, t)
             it.setToolTip(f"{t.name} · {self.lib.note_counts().get(t.id, 0)} 条")
             self.topic_list.addItem(it)
+        if current:
+            for i in range(self.topic_list.count()):
+                if getattr(self.topic_list.item(i).data(Qt.UserRole), "id", None) == current:
+                    self.topic_list.setCurrentRow(i)
+                    break
         self.topic_list.blockSignals(False)
         active = sum(1 for n in self.lib.notes.values() if n.state == "active")
         total = len(self.lib.notes)
@@ -487,6 +497,17 @@ class MainWindow(QMainWindow):
         if animate and notes:
             self._fade_in(self.note_list, 170)
 
+    def _on_note_dropped(self, note_id: str, topic_id: str):
+        """把笔记拖到左侧主题上：移动到该主题。"""
+        note = self.lib.notes.get(note_id)
+        if note is None or note.topic_id == topic_id:
+            return
+        self._flush_save()
+        self.lib.move_note(note_id, topic_id)
+        self.lib.save()
+        self.refresh_topics()
+        self._reload_notes(animate=True)
+
     def _on_note_changed(self, row: int):
         if row < 0:
             return
@@ -499,6 +520,10 @@ class MainWindow(QMainWindow):
         self.editor.set_note(note)
 
     def _note_menu(self, pos):
+        items = self.note_list.selectedItems()
+        if len(items) > 1:
+            self._bulk_menu(pos, items)
+            return
         it = self.note_list.itemAt(pos)
         if not it:
             return
@@ -524,6 +549,7 @@ class MainWindow(QMainWindow):
                 act.setData(t.id)
         a_dup = menu.addAction("复制笔记")
         menu.addSeparator()
+        a_del = a_restore = None
         if note.state == "trash":
             a_restore = menu.addAction("从回收站恢复")
         else:
@@ -548,6 +574,62 @@ class MainWindow(QMainWindow):
         self.lib.save()
         self.refresh_topics()
         self._reload_notes(animate=act in (a_del, a_arch, a_restore, a_dup))
+
+    def _bulk_menu(self, pos, items):
+        """多选时的批量操作菜单。"""
+        ids = [it.data(Qt.UserRole) for it in items if it.data(Qt.UserRole) in self.lib.notes]
+        n = len(ids)
+        if not n:
+            return
+        menu = QMenu(self)
+        if self.view[0] == "trash":
+            a_restore = menu.addAction(f"恢复 {n} 条")
+            a_pin = a_arch = None
+        else:
+            a_pin = menu.addAction(f"置顶 {n} 条")
+            a_arch = menu.addAction(f"归档 {n} 条")
+            a_restore = None
+        move_menu = menu.addMenu(f"移动到主题（{n} 条）")
+        for t in self.lib.sorted_topics():
+            act = move_menu.addAction(t.name)
+            act.setData(t.id)
+        menu.addSeparator()
+        a_del = menu.addAction(f"删除 {n} 条")
+        act = menu.exec_(self.note_list.mapToGlobal(pos))
+        if act is None:
+            return
+        if act is a_pin:
+            self._bulk_apply(ids, "pin")
+        elif act is a_arch:
+            self._bulk_apply(ids, "archive")
+        elif act is a_restore:
+            self._bulk_apply(ids, "restore")
+        elif act is a_del:
+            self._bulk_apply(ids, "delete")
+        elif act.parent() is move_menu:
+            self._bulk_apply(ids, "move", act.data())
+
+    def _bulk_apply(self, ids, kind: str, payload=None):
+        """对一批笔记执行同一操作。kind: pin/archive/restore/delete/move"""
+        self._flush_save()
+        for nid in ids:
+            note = self.lib.notes.get(nid)
+            if note is None:
+                continue
+            if kind == "pin":
+                if not note.pinned_at:
+                    self.lib.toggle_pin(nid)
+            elif kind == "archive":
+                self.lib.archive_note(nid, True)
+            elif kind == "restore":
+                self.lib.restore_note(nid)
+            elif kind == "delete":
+                self.lib.delete_note(nid)
+            elif kind == "move" and payload:
+                self.lib.move_note(nid, payload)
+        self.lib.save()
+        self.refresh_topics()
+        self._reload_notes(animate=True)
 
     # ---------------- 编辑保存 ----------------
     def new_note(self, note_type: str = "note"):

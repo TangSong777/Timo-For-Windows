@@ -3,9 +3,9 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from PyQt5.QtCore import QPointF, QRect, QRectF, QSize, Qt
-from PyQt5.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen
-from PyQt5.QtWidgets import QScrollBar, QStyledItemDelegate, QStyle
+from PyQt5.QtCore import QMimeData, QPoint, QPointF, QRect, QRectF, QSize, Qt, pyqtSignal
+from PyQt5.QtGui import QColor, QDrag, QFont, QFontMetrics, QPainter, QPen
+from PyQt5.QtWidgets import QListWidget, QScrollBar, QStyledItemDelegate, QStyle
 
 from .theme import C
 
@@ -283,3 +283,62 @@ class AutoFadeScrollBar(QScrollBar):
     def leaveEvent(self, event):
         self._timer.start()
         super().leaveEvent(event)
+
+
+class NoteList(QListWidget):
+    """支持把笔记拖到左侧主题上的列表。"""
+
+    MIME = "application/x-timo-note"
+
+    def startDrag(self, actions):  # noqa: N802
+        it = self.currentItem()
+        if it is None:
+            return
+        nid = it.data(Qt.UserRole)
+        if not nid:
+            return
+        mime = QMimeData()
+        mime.setData(self.MIME, str(nid).encode("utf-8"))
+        drag = QDrag(self)
+        drag.setMimeData(mime)
+        rect = self.visualItemRect(it)
+        pm = self.viewport().grab(rect.adjusted(6, 4, -6, -6))
+        if not pm.isNull():
+            drag.setPixmap(pm)
+            drag.setHotSpot(QPoint(pm.width() // 2, pm.height() // 2))
+        drag.exec_(Qt.MoveAction)
+
+
+class TopicList(QListWidget):
+    """主题列表：内部可拖动排序，也接受从笔记列表拖来的笔记。"""
+
+    noteDropped = pyqtSignal(str, str)
+
+    def _is_note(self, e) -> bool:
+        return e.mimeData().hasFormat(NoteList.MIME)
+
+    def dragEnterEvent(self, e):  # noqa: N802
+        if self._is_note(e):
+            e.acceptProposedAction()
+            return
+        super().dragEnterEvent(e)
+
+    def dragMoveEvent(self, e):  # noqa: N802
+        if self._is_note(e):
+            e.acceptProposedAction()
+            return
+        super().dragMoveEvent(e)
+
+    def dropEvent(self, e):  # noqa: N802
+        if not self._is_note(e):
+            super().dropEvent(e)
+            return
+        nid = bytes(e.mimeData().data(NoteList.MIME)).decode("utf-8", "ignore")
+        it = self.itemAt(e.pos())
+        e.acceptProposedAction()
+        if not nid or it is None:
+            return
+        topic = it.data(Qt.UserRole)
+        tid = getattr(topic, "id", None)
+        if tid:
+            self.noteDropped.emit(nid, tid)
