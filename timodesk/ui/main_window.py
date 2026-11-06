@@ -622,6 +622,8 @@ class MainWindow(QMainWindow):
         if self.tray is not None:
             self.tray.showMessage("Timo 提醒", text, QSystemTrayIcon.Information, 8000)
         if self.isVisible():
+            self._toast(text, 6000)
+            QApplication.alert(self, 0)  # 任务栏图标闪烁，直到用户回到窗口
             self._reload_notes()
         else:
             self._reload_notes(select_id=self.editor.note.id if self.editor.note else None)

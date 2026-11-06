@@ -15,3 +15,4 @@
 - 拖入 `.md` / `.markdown` / `.txt` 会在当前主题新建笔记：首行 `# 标题` 作为文章标题（类型 article，正文不含标题行），否则用文件名作标题（类型 note）；编码按 utf-8-sig → utf-8 → gbk 依次尝试。
 - 笔记列表按 `Delete` / `Backspace` 把选中项移到回收站（弹确认）；回收站视图里按则提示「用右键彻底删除」。
 - 新增 `test_dragtext.py`（14 项）、`test_delkey.py`（7 项）；全量 29 个脚本全绿。
+- 提醒到点时若主窗口在前台，额外弹一个 tooltip 并让任务栏图标闪烁（`QApplication.alert`），不再只靠托盘气泡。
