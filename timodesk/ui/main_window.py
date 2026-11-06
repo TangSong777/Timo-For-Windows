@@ -580,6 +580,7 @@ class MainWindow(QMainWindow):
         delegate = self.note_list.itemDelegate()
         if delegate is not None:
             delegate.show_topic = kind in ("all", "archived") or bool(self._search_buf)
+            delegate.term = self._search_buf or ""
 
         notes = self._current_notes()
         if self._search_buf:

@@ -67,6 +67,7 @@ class NoteCardDelegate(QStyledItemDelegate):
         super().__init__(parent)
         self.lib = lib
         self.show_topic = False
+        self.term = ""  # 搜索词：命中处会在摘要里刷底色
 
     def sizeHint(self, option, index) -> QSize:
         return QSize(280, 100)
@@ -145,7 +146,7 @@ class NoteCardDelegate(QStyledItemDelegate):
         lines = _wrap_lines(body, fm2, width, 2)
         y = r.top() + 30
         for ln in lines:
-            painter.drawText(QRect(left, y, width, 18), Qt.AlignLeft | Qt.AlignVCenter, ln)
+            _draw_line(painter, QRect(left, y, width, 18), ln, self.term, fm2)
             y += 17
         if not lines:
             painter.setPen(QColor(C["faint"]))
@@ -168,6 +169,37 @@ class NoteCardDelegate(QStyledItemDelegate):
             fm_meta.elidedText(meta, Qt.ElideRight, width),
         )
         painter.restore()
+
+
+def _draw_line(painter, rect, line, term, fm) -> None:
+    """画一行摘要；命中搜索词的部分刷一层底色，其余保持灰色。"""
+    term = (term or "").strip()
+    low = line.lower()
+    i = low.find(term.lower()) if term else -1
+    if i < 0:
+        painter.drawText(rect, Qt.AlignLeft | Qt.AlignVCenter, line)
+        return
+    parts = (line[:i], line[i:i + len(term)], line[i + len(term):])
+    x = rect.left()
+    for k, seg in enumerate(parts):
+        if not seg:
+            continue
+        w = fm.width(seg)
+        if k == 1:
+            painter.fillRect(
+                QRect(x - 1, rect.top() + 3, w + 2, rect.height() - 6),
+                QColor(C["hl_bg"]),
+            )
+            painter.setPen(QColor(C["ink"]))
+        else:
+            painter.setPen(QColor(C["muted"]))
+        painter.drawText(
+            QRect(x, rect.top(), w + 2, rect.height()),
+            Qt.AlignLeft | Qt.AlignVCenter,
+            seg,
+        )
+        x += w
+    painter.setPen(QColor(C["muted"]))
 
 
 _TYPE_MARK = {
