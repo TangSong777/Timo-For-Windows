@@ -42,6 +42,7 @@ LIGHT = {
     "btn_hover": "#000000",
     "btn_press": "#333333",
     "close_hover": "#2e2e2e",
+    "hl_bg": "#d0d0d0",
     "scroll": "#d8d8dc",
     "scroll_hover": "#bdbdc4",
     # 强调（历史命名保留：green 系列现在就是黑）
@@ -84,6 +85,7 @@ DARK = {
     "btn_hover": "#ffffff",
     "btn_press": "#d4d4d4",
     "close_hover": "#3a3a42",
+    "hl_bg": "#4a4a52",
     "scroll": "#3a3a42",
     "scroll_hover": "#4e4e58",
     "green": "#ececee",

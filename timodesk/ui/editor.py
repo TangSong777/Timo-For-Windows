@@ -1322,7 +1322,7 @@ class NoteEditor(QWidget):
             self.preview.setExtraSelections([])
             return
         fmt = QTextCharFormat()
-        fmt.setBackground(QColor("#c9c9c9"))
+        fmt.setBackground(QColor(C["hl_bg"]))
         doc = self.preview.document()
         sels = []
         for word in [w for w in term.split() if w]:

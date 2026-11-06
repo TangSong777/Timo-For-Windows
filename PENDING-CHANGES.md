@@ -22,3 +22,7 @@
 - 图库缩略图外框底色由硬编码 `#f3f3f5` 改为 `C['input_bg']`，深色下不再是白块。
 - `#NoteDesc` 边框改用 `card_border_strong`，深色下说明框边界可见。
 - `#WordLabel` / `#TimeLabel` / `#GalleryHint` / `#AccountTip` 由 faint 提为 muted，深色下底部字数与提示可读。
+
+## 2026-11-06 — 深色模式的对话框与细节修正
+- 「关于」框统计条、备份列表（背景与选中）、搜索高亮改为跟随主题；新增 `C['hl_bg']`（浅 #d0d0d0 / 深 #4a4a52），预览高亮与主题一致。
+- `test_hl.py` 的底色断言改为读取 `C['hl_bg']`，不再写死。

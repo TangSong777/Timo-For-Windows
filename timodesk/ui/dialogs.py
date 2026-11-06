@@ -262,9 +262,9 @@ class BackupDialog(FramelessDialog):
         self.list.setObjectName("BackupList")
         self.list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.list.setStyleSheet(
-            f"QListWidget#BackupList{{background:#fff;border:1px solid {C['card_border']};border-radius:10px;padding:4px;}}"
+            f"QListWidget#BackupList{{background:{C['card']};border:1px solid {C['card_border']};border-radius:10px;padding:4px;}}"
             f"QListWidget#BackupList::item{{padding:7px 8px;border-radius:6px;}}"
-            f"QListWidget#BackupList::item:selected{{background:#f0f0f2;color:{C['ink']};}}"
+            f"QListWidget#BackupList::item:selected{{background:{C['hover_bg']};color:{C['ink']};}}"
         )
         lay.addWidget(self.list, 1)
 
@@ -446,7 +446,7 @@ class AboutDialog(FramelessDialog):
 
         stat = QLabel(f"{len(topics)} 个主题 · {len(notes)} 条笔记 · {att} 个附件 · 约 {chars:,} 字")
         stat.setStyleSheet(
-            f"background:#fafafb;border:1px solid {C['card_border']};border-radius:10px;"
+            f"background:{C['paper_alt']};border:1px solid {C['card_border']};border-radius:10px;"
             f"padding:11px 14px;color:{C['ink']};font-size:13px;"
         )
         lay.addWidget(stat)

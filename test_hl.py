@@ -38,7 +38,8 @@ app.processEvents()
 sels = win.editor.preview.extraSelections()
 check("三处命中都选中", len(sels) == 3)
 check("选中文本正确", all(s.cursor.selectedText() == "奖学金" for s in sels))
-check("底色是灰的", sels[0].format.background().color().name() == "#c9c9c9")
+from timodesk.ui.theme import C
+check("底色跟随主题", sels[0].format.background().color().name() == C["hl_bg"])
 check("预览文本完整", "奖学金很好" in win.editor.preview.toPlainText())
 
 win.editor.set_highlight("")
