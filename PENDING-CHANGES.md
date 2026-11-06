@@ -31,3 +31,17 @@
 - **文件**：`timodesk/ui/dialogs.py`（新增）、`timodesk/app.py`、`timodesk/ui/main_window.py`、`docs/screenshot-*.png`
 - **验证**：欢迎页 / 消息框 / 进度框三处截图核对；`test_core.py` 13/13；打包 exe 空库启动显示无边框欢迎页
 - **影响**：全应用不再出现系统标题栏；文档截图同步更新
+
+## 2026-11-06 — 改名 Timo For Windows、便携安装包、系统托盘
+
+- **类型**：功能 / 打包 / 命名
+- **内容**：
+  - 项目改名 **Timo For Windows**（GitHub 仓库同步改名 `TangSong777/Timo-For-Windows`）
+  - 数据目录由 `data/` 改为 `Data/`（便携文件夹看起来更整齐）
+  - 新增单文件安装包 `Timo For Windows 安装包.exe`：自解压到指定文件夹、自动启动主程序、删除自身，全程无控制台
+  - 新增系统托盘：单击唤出窗口、关闭窗口收进托盘、右键菜单（打开 / 新建笔记 / 打开数据文件夹 / 退出）
+  - 主程序 exe 名改为 `Timo For Windows.exe`，标题栏副标题改为 `For Windows`
+  - 发版资产由 zip 改为单文件安装包；`tools/make-release.py` 重写
+- **文件**：`installer.py`、`tools/make-portable.py`、`tools/make-release.py`、`timodesk/ui/tray.py`、`timodesk/app.py`、`timodesk/ui/main_window.py`、`timodesk/ui/title_bar.py`、`assets/timo-tray.ico`、`README.md`、`.gitignore`
+- **验证**：托盘三态测试（显示 / 关闭收进托盘 / 唤出）；安装包 `--silent` 解压 238 个文件含 `Data/`；onedir 主程序空库启动显示欢迎页；`--auto` 端到端通过（解压→启动→安装包自身 5 秒内删除）
+- **影响**：安装包体积约 111 MB；未签名，首次运行会遇到 SmartScreen 提示

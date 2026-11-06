@@ -1,4 +1,4 @@
-# Timo 桌面版（Windows）
+# Timo For Windows
 
 把 Android 上的 [Timo笔记](https://timo.idik.net/) 搬到 Windows 的本地笔记软件：**数据全在本机，不需要账号，不联网**。
 直接导入手机 App 导出的 ZIP，改完还能再导出回去。
@@ -9,24 +9,61 @@
 
 ## 下载
 
-到 [Releases](../../releases/latest) 下载 `TimoDesktop-<版本>-win64.zip`，解压后双击 `Timo笔记.exe`。
+到 [Releases](../../releases/latest) 下载 **`Timo For Windows 安装包.exe`**。
 
-要求：Windows 10 / 11 64 位。无需安装，也不写注册表——整个文件夹拷到别处就能用。
+要求：Windows 10 / 11 64 位。
 
-## 快速开始
+## 怎么用（便携版）
 
-1. 打开手机上的 Timo笔记 → 设置 → 导出可读副本，得到 `Timo_Export_xxxx.zip`。
-2. 双击 `Timo笔记.exe`，首次启动选择「导入 Timo 导出包（.zip）」。
-3. 也可以把 ZIP 直接拖到 exe 上，或先从空白开始、之后再从左上角 `⋯` 菜单导入。
+### 1. 解包
 
-数据保存在程序旁的 `data/` 目录：
+双击下载的 `Timo For Windows 安装包.exe`：
+
+1. 弹出小窗口，显示要解压到的位置，默认是安装包旁边新建的 `Timo For Windows` 文件夹；
+2. 想换地方就点 **更改…** 选一个目录（会在里面再建一个 `Timo For Windows`）；
+3. 点 **解压到这里**，等进度条走完。
+
+解压完成后：程序会自动打开，**安装包自己删除**，留下的就是一个可以直接用的文件夹：
 
 ```
-data/
+Timo For Windows/
+├── Timo For Windows.exe   ← 双击这个启动
+├── _internal/             ← 运行需要的 Qt 等 dll，别删
+└── Data/                  ← 你的笔记数据
+```
+
+整个过程不写注册表、不装服务、不出现命令行黑框。
+
+> **第一次运行会被 Windows 拦一下。** 这个安装包没有买代码签名证书，Windows SmartScreen 会提示「Windows 已保护你的电脑」——点 **更多信息** → **仍要运行** 就行。少数杀毒软件也会对「自己解压自己」的安装包报警，可以把它加进白名单。
+
+### 2. 第一次打开
+
+双击 `Timo For Windows.exe`，会问你要不要导入手机上的数据：
+
+1. 打开手机上的 Timo笔记 → 设置 → 导出可读副本，得到 `Timo_Export_xxxx.zip`；
+2. 在欢迎页点 **导入 Timo 导出包（.zip）**，选中那个 ZIP；
+3. 等几秒，主题、笔记、图片、账号就都进来了。
+
+也可以跳过欢迎页，之后从侧栏底部的 `⋯` 菜单导入；把 ZIP 直接拖到 `Timo For Windows.exe` 图标上也能导入。
+
+### 3. 搬家 / 备份
+
+所有东西都在这个文件夹里：
+
+```
+Data/
 ├── library.json      # 主题与笔记元数据
 ├── notes/*.md        # 每条笔记的正文（Markdown）
 └── attachments/      # 图片等附件原件
 ```
+
+要换电脑或备份，直接复制整个 `Timo For Windows` 文件夹即可；想回手机上用，从 `⋯` 菜单 **导出为 Timo ZIP**，再把 ZIP 导回手机。
+
+### 4. 托盘
+
+- 点窗口右上角的 **✕** 不会退出，而是收进系统托盘（右下角时间旁边）；
+- **单击托盘图标** 重新打开窗口；
+- **右键托盘图标**：打开 Timo For Windows / 新建笔记 / 打开数据文件夹 / 退出。
 
 ## 功能
 
@@ -52,6 +89,7 @@ data/
 - 密码以明文保存在 `library.json`（与 Timo 导出的 `accounts.csv` 一致）。程序不加密、不联网，别把数据目录发给别人。
 - 手机端的指纹锁、提醒、云同步、桌面小组件没有移植——本地版只做笔记本身。
 - 首次导入 1000 条笔记约需 5 秒。
+- 如果把程序放在 U 盘里用，`Data/` 会跟着 U 盘走；U 盘拔掉前先退出程序。
 
 ## 从源码运行
 
@@ -60,13 +98,16 @@ pip install PyQt5 markdown
 python run.py
 ```
 
-打包（PyInstaller）：
+打便携版（主程序 + 自解压安装包）：
 
 ```bat
-pip install pyinstaller
-python -m PyInstaller --noconfirm --windowed --name "Timo笔记" ^
-  --icon assets/timo-icon.ico --add-data "assets;assets" run.py
+python tools/make-portable.py
 ```
+
+产物：
+
+- `dist/Timo For Windows/Timo For Windows.exe` —— 解压后的程序本体
+- `dist/Timo For Windows 安装包.exe` —— 用来分发的单文件安装包
 
 ## 开发
 

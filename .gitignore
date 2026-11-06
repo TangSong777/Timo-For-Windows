@@ -27,3 +27,8 @@ shot_*.png
 .DS_Store
 Thumbs.db
 shot_*.py
+
+# 打包产物 / 本地数据
+Data/
+*.spec
+build/payload.zip

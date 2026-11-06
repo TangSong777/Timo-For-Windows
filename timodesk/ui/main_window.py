@@ -19,6 +19,7 @@ from PyQt5.QtWidgets import (
     QMenu,
     QPushButton,
     QShortcut,
+    QSystemTrayIcon,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -56,9 +57,12 @@ class MainWindow(QMainWindow):
         self.view = ("all", None)  # (kind, topic_id)
         self._pending_save = None
         self._search_buf = ""
-        self.setWindowTitle("Timo · 本地笔记")
+        self.setWindowTitle("Timo For Windows")
         self.resize(1280, 830)
         self.setMinimumSize(980, 620)
+        self.tray = None
+        self._quitting = False
+        self._tray_hinted = False
         self._build_ui()
         self._build_shortcuts()
         self._save_timer = QTimer(self)
@@ -597,8 +601,8 @@ class MainWindow(QMainWindow):
 
         info(
             self,
-            "关于 Timo 桌面版",
-            f"<h3>Timo 桌面版 {__version__}</h3>"
+            "关于 Timo For Windows",
+            f"<h3>Timo For Windows {__version__}</h3>"
             "<p>Windows 本地笔记软件，可导入 Timo（Android）导出的数据包，"
             "数据全部保存在本机，不需要账号，也不联网。</p>"
             f"<p style='color:{C['muted']}'>数据目录：{self.lib.root}</p>"
@@ -608,6 +612,19 @@ class MainWindow(QMainWindow):
     def closeEvent(self, e):  # noqa: N802
         self.save_now()
         self.lib.save()
+        # 有托盘时，关闭 = 收进托盘；从托盘菜单退出才算真退出
+        if self.tray is not None and not self._quitting:
+            e.ignore()
+            self.hide()
+            if not self._tray_hinted:
+                self._tray_hinted = True
+                self.tray.showMessage(
+                    "Timo For Windows",
+                    "已收进托盘。点托盘图标可以重新打开，右键可以退出。",
+                    QSystemTrayIcon.Information,
+                    4000,
+                )
+            return
         super().closeEvent(e)
 
     # ---------------- 无边框窗口 ----------------

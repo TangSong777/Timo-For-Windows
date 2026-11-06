@@ -1,51 +1,64 @@
-"""把 PyInstaller 产物打成发布用的 zip，并生成 SHA256SUMS.txt。
+"""生成发版资产：便携安装包 + SHA256SUMS.txt。
 
 用法：
-    python tools/make-release.py 0.1.0
+    python tools/make-release.py 0.2.0
 
-产物：
-    TimoDesktop-<版本>-win64.zip
+前置：先跑 `python tools/make-portable.py` 打出 `dist/Timo For Windows 安装包.exe`。
+
+产物（dist/release/<版本>/）：
+    Timo For Windows 安装包.exe
     SHA256SUMS.txt
 """
 from __future__ import annotations
 
 import hashlib
-import os
+import shutil
 import sys
-import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SRC = ROOT / "dist" / "Timo笔记"
+SRC = ROOT / "dist" / "Timo For Windows 安装包.exe"
+ASSET = "Timo For Windows 安装包.exe"
+
+
+def project_version() -> str:
+    ns: dict = {}
+    exec((ROOT / "timodesk" / "__init__.py").read_text(encoding="utf-8"), ns)  # noqa: S102
+    return ns.get("__version__", "0.0.0")
+
+
+def sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 def main() -> int:
     if len(sys.argv) != 2:
-        print("用法: python tools/make-release.py <版本号，如 0.1.0>")
+        print("用法: python tools/make-release.py <版本号，如 0.2.0>")
         return 2
     version = sys.argv[1].lstrip("v")
-    if not SRC.is_dir():
-        print(f"找不到打包产物：{SRC}\n先运行 PyInstaller。")
+    if version != project_version():
+        print(f"版本号不一致：参数 {version}，timodesk/__init__.py 是 {project_version()}")
+        return 1
+    if not SRC.exists():
+        print(f"找不到安装包：{SRC}\n先运行 python tools/make-portable.py")
         return 1
 
-    out = ROOT / f"TimoDesktop-{version}-win64.zip"
-    arc_root = f"TimoDesktop-{version}"
+    out_dir = ROOT / "dist" / "release" / version
+    out_dir.mkdir(parents=True, exist_ok=True)
+    target = out_dir / ASSET
+    if target.exists():
+        target.unlink()
+    shutil.copy2(SRC, target)
 
-    files = [
-        (p, os.path.relpath(p, SRC))
-        for dp, _, fns in os.walk(SRC)
-        for p in (os.path.join(dp, fn) for fn in fns)
-    ]
-    files.sort(key=lambda x: x[1])
-
-    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:
-        for p, rel in files:
-            z.write(p, f"{arc_root}/{rel}".replace("\\", "/"))
-
-    digest = hashlib.sha256(out.read_bytes()).hexdigest()
-    (ROOT / "SHA256SUMS.txt").write_text(f"{digest}  {out.name}\n", encoding="utf-8", newline="\n")
-
-    print(f"文件数 {len(files)}，大小 {out.stat().st_size / 1048576:.1f} MB")
+    digest = sha256(target)
+    (out_dir / "SHA256SUMS.txt").write_text(
+        f"{digest}  {ASSET}\n", encoding="utf-8", newline="\n"
+    )
+    print(f"{target}  {target.stat().st_size / 1048576:.1f} MB")
     print(f"SHA256 {digest}")
     return 0
 

@@ -23,10 +23,11 @@ from .ui.main_window import MainWindow
 from .ui.theme import app_qss
 from .ui.title_bar import FramelessDialog
 from .ui.dialogs import ProgressDialog, error, info
+from .ui.tray import TrayIcon
 
 from . import __version__
 
-APP_NAME = "Timo Desktop"
+APP_NAME = "Timo For Windows"
 APP_VERSION = __version__
 
 
@@ -37,8 +38,8 @@ def base_dir() -> Path:
 
 
 def data_dir() -> Path:
-    """便携优先：程序目录/data；不可写时退到用户目录。"""
-    d = Path(os.environ.get("TIMO_DATA_DIR") or (base_dir() / "data"))
+    """便携优先：程序目录/Data；不可写时退到用户目录。"""
+    d = Path(os.environ.get("TIMO_DATA_DIR") or (base_dir() / "Data"))
     try:
         d.mkdir(parents=True, exist_ok=True)
         probe = d / ".write_test"
@@ -49,6 +50,46 @@ def data_dir() -> Path:
         alt = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "TimoDesktop"
         alt.mkdir(parents=True, exist_ok=True)
         return alt
+
+
+def _install_excepthook(root: Path) -> None:
+    """windowed 模式没有控制台，未捕获异常写进 Data/error.log。"""
+    log = root / "error.log"
+
+    def hook(tp, val, tb):
+        import traceback
+        from datetime import datetime
+
+        text = "".join(traceback.format_exception(tp, val, tb))
+        try:
+            with open(log, "a", encoding="utf-8") as f:
+                f.write(f"\n[{datetime.now():%Y-%m-%d %H:%M:%S}]\n{text}")
+        except Exception:  # noqa: BLE001
+            pass
+        sys.__excepthook__(tp, val, tb)
+
+    sys.excepthook = hook
+
+
+def _schedule_delete(paths: list[str]) -> None:
+    """安装器把删除自己的活儿交给主程序：等安装包退出后再删掉它。"""
+    if not paths:
+        return
+    import threading
+    import time
+
+    def work(p: Path) -> None:
+        for _ in range(60):
+            try:
+                if not p.exists():
+                    return
+                p.unlink()
+                return
+            except OSError:
+                time.sleep(0.5)
+
+    for item in paths:
+        threading.Thread(target=work, args=(Path(item),), daemon=True).start()
 
 
 class WelcomeDialog(FramelessDialog):
@@ -180,9 +221,21 @@ def run():
         app.setWindowIcon(QIcon(str(ico)))
 
     root = data_dir()
+    _install_excepthook(root)
+
+    args = list(sys.argv[1:])
+    delete_targets: list[str] = []
+    if "--delete" in args:
+        i = args.index("--delete")
+        if i + 1 < len(args):
+            delete_targets.append(args[i + 1])
+            del args[i : i + 2]
+    # 尽早开始，避免被欢迎对话框等模态窗口挡住
+    _schedule_delete(delete_targets)
+
     lib = Library(root).load()
 
-    cli = next((a for a in sys.argv[1:] if a and Path(a).exists()), "")
+    cli = next((a for a in args if a and Path(a).exists()), "")
     if cli:
         if not _import_with_progress(lib, cli):
             return 1
@@ -195,6 +248,10 @@ def run():
                 return 1
 
     win = MainWindow(lib)
+    tray = TrayIcon(win)
+    win.tray = tray
+    tray.show()
+    app.setQuitOnLastWindowClosed(False)
     win.show()
     return app.exec_()
 

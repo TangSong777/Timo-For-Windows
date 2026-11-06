@@ -136,7 +136,7 @@ class TitleBar(QWidget):
 
         brand = QLabel("Timo", objectName="TitleBrand")
         lay.addWidget(brand)
-        sub = QLabel("本地笔记", objectName="TitleSub")
+        sub = QLabel("For Windows", objectName="TitleSub")
         lay.addWidget(sub, alignment=Qt.AlignBottom)
         lay.addStretch(1)
 
