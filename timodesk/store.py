@@ -21,6 +21,8 @@ from pathlib import Path
 from typing import Any, Iterable
 
 # 笔记类型：与 Timo 导出的 type 名称一致
+INBOX_TOPIC = "（未分类）"
+
 NOTE_TYPES = ("note", "article", "gallery", "link", "date", "account")
 TYPE_LABELS = {
     "note": "笔记",
@@ -274,6 +276,12 @@ class Library:
             t = self.topics.get(topic_id)
             if t:
                 t.state = "trash"
+                # 和手机版一致：删主题时，主题里还在用的笔记一起进回收站
+                ts = now_iso()
+                for n in self.notes.values():
+                    if n.topic_id == topic_id and n.state == "active":
+                        n.state = "trash"
+                        n.deleted_at = ts
         self.save()
 
     def reorder_topics(self, ordered_ids: list[str]) -> None:
@@ -327,10 +335,23 @@ class Library:
             n.deleted_at = now_iso()
         self.save()
 
+    def inbox_topic_id(self) -> str:
+        """找（或建）一个用来收留「主题已被删掉」的笔记的占位主题。"""
+        for t in self.sorted_topics():
+            if t.name == INBOX_TOPIC:
+                return t.id
+        t = self.add_topic(INBOX_TOPIC)
+        self.save()
+        return t.id
+
     def restore_note(self, note_id: str) -> None:
         n = self.notes.get(note_id)
         if not n:
             return
+        t = self.topics.get(n.topic_id)
+        if not t or t.state != "active":
+            # 原主题已经删了，恢复时落到「（未分类）」，不要变成孤儿笔记
+            n.topic_id = self.inbox_topic_id()
         n.state = "active"
         n.deleted_at = None
         n.archived_at = None
