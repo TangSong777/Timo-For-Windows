@@ -107,6 +107,7 @@ class MainWindow(QMainWindow):
         self.resize(1280, 830)
         self.setMinimumSize(980, 620)
         self.tray = None
+        self.setAcceptDrops(True)
         self.settings = Settings(self.lib.root)
         self._quitting = False
         self._tray_hinted = False
@@ -740,6 +741,43 @@ class MainWindow(QMainWindow):
         if not path:
             return
         self._do_import(path)
+
+    # ---------------- 拖拽导入 ----------------
+    @staticmethod
+    def _droppable(path: str) -> bool:
+        if not path:
+            return False
+        low = path.lower()
+        return low.endswith(".zip") or Path(path).is_dir()
+
+    def _has_droppable(self, e) -> bool:
+        md = e.mimeData()
+        if md is None or not md.hasUrls():
+            return False
+        return any(self._droppable(u.toLocalFile()) for u in md.urls())
+
+    def dragEnterEvent(self, e):
+        if self._has_droppable(e):
+            e.acceptProposedAction()
+        else:
+            e.ignore()
+
+    def dragMoveEvent(self, e):
+        if self._has_droppable(e):
+            e.acceptProposedAction()
+        else:
+            e.ignore()
+
+    def dropEvent(self, e):
+        md = e.mimeData()
+        if md is not None and md.hasUrls():
+            for u in md.urls():
+                p = u.toLocalFile()
+                if self._droppable(p):
+                    e.acceptProposedAction()
+                    self._do_import(p)
+                    return
+        e.ignore()
 
     def _do_import(self, path: str):
         mode = "replace"
