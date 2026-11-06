@@ -24,9 +24,16 @@ class ImportReport:
     attachments: int = 0
     missing_attachments: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    skipped: int = 0
+    mode: str = "replace"
 
     def summary(self) -> str:
-        s = f"导入完成：{self.topics} 个主题、{self.notes} 条笔记、{self.attachments} 个附件"
+        if self.mode == "merge":
+            s = f"合并完成：新增 {self.notes} 条笔记、{self.attachments} 个附件"
+            if self.skipped:
+                s += f"\n已存在而跳过 {self.skipped} 条"
+        else:
+            s = f"导入完成：{self.topics} 个主题、{self.notes} 条笔记、{self.attachments} 个附件"
         if self.missing_attachments:
             s += f"\n缺失附件 {len(self.missing_attachments)} 个"
         return s
@@ -110,9 +117,13 @@ def _load_account_passwords(root: Path) -> dict[str, dict]:
     return out
 
 
-def import_export(src: str | os.PathLike, lib: Library, progress=None) -> ImportReport:
-    """导入 Timo 导出包。会清空 lib 现有内容，然后整体替换。"""
-    report = ImportReport()
+def import_export(src: str | os.PathLike, lib: Library, progress=None, mode: str = "replace") -> ImportReport:
+    """导入 Timo 导出包。
+
+    mode="replace"：清空现有内容后整体替换。
+    mode="merge"：保留现有笔记，只添加包里没有的新笔记（同 id 跳过）。
+    """
+    report = ImportReport(mode=mode)
     tmp = None
     try:
         src_path = Path(src)
@@ -128,18 +139,23 @@ def import_export(src: str | os.PathLike, lib: Library, progress=None) -> Import
         manifest = json.loads(_read_text(root / "manifest.json")) if (root / "manifest.json").exists() else {}
         passwords = _load_account_passwords(root)
 
-        # 清空目标库
-        lib.topics.clear()
-        lib.notes.clear()
-        lib._content.clear()
-        if lib.notes_dir.exists():
-            shutil.rmtree(lib.notes_dir)
+        merge = mode == "merge"
+        base_order = max((t.order for t in lib.topics.values()), default=-1.0) + 1 if merge else 0.0
+        if not merge:
+            # 清空目标库
+            lib.topics.clear()
+            lib.notes.clear()
+            lib._content.clear()
+            if lib.notes_dir.exists():
+                shutil.rmtree(lib.notes_dir)
         lib.notes_dir.mkdir(parents=True, exist_ok=True)
         lib.attachments_dir.mkdir(parents=True, exist_ok=True)
 
         # 1) 主题
         topic_list = topics_raw.get("topics", [])
         for i, t in enumerate(topic_list):
+            if merge and t["id"] in lib.topics:
+                continue
             lib.topics[t["id"]] = Topic(
                 id=t["id"],
                 name=t.get("name") or "未命名主题",
@@ -150,7 +166,7 @@ def import_export(src: str | os.PathLike, lib: Library, progress=None) -> Import
                 updated_at=t.get("updatedAt") or "",
                 deleted_at=t.get("deletedAt"),
                 archived_at=t.get("archivedAt"),
-                order=float(i),
+                order=float(i) + base_order,
             )
         report.topics = len(lib.topics)
 
@@ -159,9 +175,13 @@ def import_export(src: str | os.PathLike, lib: Library, progress=None) -> Import
         att_src = root / "attachments"
         if att_src.exists():
             for f in att_src.iterdir():
-                if f.is_file():
-                    shutil.copy2(f, lib.attachment_path(f.name))
-                    report.attachments += 1
+                if not f.is_file():
+                    continue
+                dst = lib.attachment_path(f.name)
+                if merge and dst.exists():
+                    continue
+                shutil.copy2(f, dst)
+                report.attachments += 1
         for a in manifest.get("attachments", []):
             if a.get("uri") and a.get("path"):
                 uri_map[a["uri"]] = f"attachments/{Path(a['path']).name}"
@@ -252,8 +272,14 @@ def import_export(src: str | os.PathLike, lib: Library, progress=None) -> Import
                     content = _norm_newlines(md_text)
                 content, _ = rewrite_md(content)
 
+            nid = d.get("id") or lib.new_id()
+            if merge and nid in lib.notes:
+                report.skipped += 1
+                if progress and (idx % 25 == 0 or idx == total - 1):
+                    progress(idx + 1, total)
+                continue
             note = Note(
-                id=d.get("id") or lib.new_id(),
+                id=nid,
                 topic_id=d.get("topicId") or "",
                 type=ntype,
                 state=d.get("state") or "active",

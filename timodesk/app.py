@@ -194,11 +194,7 @@ def _import_with_progress(lib: Library, path: str) -> bool:
         report = import_export(path, lib, progress=pg)
         lib.save()
         pr.close()
-        info(
-            None,
-            "导入完成",
-            f"主题 {report.topics} 个、笔记 {report.notes} 条、附件 {report.attachments} 个。",
-        )
+        info(None, "导入完成", report.summary())
     except Exception as e:  # noqa: BLE001
         pr.close()
         error(None, "导入失败", str(e))

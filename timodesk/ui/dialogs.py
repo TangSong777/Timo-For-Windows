@@ -501,3 +501,52 @@ class BackupDialog(FramelessDialog):
             os.startfile(str(d))
         except Exception:
             pass
+
+
+class ImportModeDialog(FramelessDialog):
+    """已有数据时选择：合并（只加新的）或替换（清空后导入）。"""
+
+    def __init__(self, parent, note_count: int):
+        super().__init__(parent, "导入 Timo 数据")
+        from PyQt5.QtWidgets import QHBoxLayout, QPushButton
+
+        self.setStyleSheet(_BTN_QSS)
+        self.mode: str | None = None
+        self.setFixedSize(460, 232)
+
+        lay = QVBoxLayout(self.body)
+        lay.setContentsMargins(30, 22, 30, 22)
+        lay.setSpacing(10)
+
+        t = QLabel("当前库里有 %d 条笔记" % note_count)
+        t.setStyleSheet(f"font-size:15px;font-weight:600;color:{C['ink']};")
+        lay.addWidget(t)
+
+        d1 = QLabel("合并导入：保留现在的笔记，只把包里没有的新笔记加进来。")
+        d1.setWordWrap(True)
+        d1.setStyleSheet(f"color:{C['ink_soft']};font-size:12px;")
+        lay.addWidget(d1)
+
+        d2 = QLabel("替换导入：清空当前库，用包里的内容整体替换（动手前会先备份一份）。")
+        d2.setWordWrap(True)
+        d2.setStyleSheet(f"color:{C['muted']};font-size:12px;")
+        lay.addWidget(d2)
+
+        lay.addStretch(1)
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        b_cancel = _button("取消", "Link")
+        b_cancel.clicked.connect(self.reject)
+        row.addWidget(b_cancel)
+        row.addStretch(1)
+        b_replace = _button("替换导入", "Plain")
+        b_replace.clicked.connect(lambda: self._pick("replace"))
+        row.addWidget(b_replace)
+        b_merge = _button("合并导入", "Primary")
+        b_merge.clicked.connect(lambda: self._pick("merge"))
+        row.addWidget(b_merge)
+        lay.addLayout(row)
+
+    def _pick(self, mode: str):
+        self.mode = mode
+        self.accept()

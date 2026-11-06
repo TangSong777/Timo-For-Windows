@@ -742,13 +742,14 @@ class MainWindow(QMainWindow):
         self._do_import(path)
 
     def _do_import(self, path: str):
+        mode = "replace"
         if self.lib.notes:
-            if not confirm(
-                self,
-                "导入数据",
-                "导入会用包里的内容替换当前库（现有笔记会先备份到 backup 目录）。继续？",
-            ):
+            from .dialogs import ImportModeDialog
+
+            pick = ImportModeDialog(self, len(self.lib.notes))
+            if not pick.exec_() or not pick.mode:
                 return
+            mode = pick.mode
         dlg = ProgressDialog(self, "导入 Timo 数据", "正在导入…")
         dlg.show()
         QApplication.processEvents()
@@ -760,8 +761,8 @@ class MainWindow(QMainWindow):
                 raise RuntimeError("用户取消")
 
         try:
-            backup = self._backup_current()
-            report = import_export(path, self.lib, progress=progress)
+            backup = self._backup_current() if mode == "replace" else None
+            report = import_export(path, self.lib, progress=progress, mode=mode)
             self.lib.save()
         except Exception as e:  # noqa: BLE001
             dlg.close()
@@ -770,7 +771,9 @@ class MainWindow(QMainWindow):
         dlg.close()
         self.refresh_topics()
         self.select_nav("all")
-        msg = f"导入完成：{report.topics} 个主题、{report.notes} 条笔记、{report.attachments} 个附件。"
+        msg = report.summary().split("\n")[0] + "。"
+        if report.skipped:
+            msg += f"\n跳过已存在的笔记 {report.skipped} 条。"
         if report.missing_attachments:
             msg += f"\n有 {len(report.missing_attachments)} 个附件缺失。"
         if report.warnings:
