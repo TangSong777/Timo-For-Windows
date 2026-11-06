@@ -134,6 +134,11 @@ QListWidget#NavList::item:hover {{
     background: {C['card_hover']};
 }}
 
+QListWidget#Wall {{ background: transparent; border: none; }}
+QListWidget#Wall::item {{ border-radius: 10px; margin: 2px; }}
+QListWidget#Wall::item:hover {{ background: #f4f4f6; }}
+QListWidget#Wall::item:selected {{ background: #eaeaec; }}
+
 /* ---------- 中栏 ---------- */
 #ListHeader {{ font-size: {int(15 * s)}px; font-weight: 600; color: {C['ink']}; }}
 #CountLabel {{ color: {C['faint']}; font-size: {int(11 * s)}px; }}

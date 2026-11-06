@@ -49,6 +49,7 @@ from PyQt5.QtWidgets import (
 from ..render import render
 from ..store import TYPE_LABELS, Library, Note
 from .theme import C, NOTE_COLORS, color_icon
+from .widgets import AutoFadeScrollBar
 from .widgets import human_time
 
 
@@ -354,7 +355,8 @@ class NoteEditor(QWidget):
         self.wall.setMovement(QListWidget.Static)
         self.wall.setSpacing(6)
         self.wall.setWordWrap(True)
-        self.wall.setStyleSheet(f"QListWidget{{background:transparent;border:none;}}")
+        self.wall.setObjectName("Wall")
+        self.wall.setVerticalScrollBar(AutoFadeScrollBar(Qt.Vertical, self.wall))
         self.wall.itemDoubleClicked.connect(self._open_viewer)
         self.wall.setContextMenuPolicy(Qt.CustomContextMenu)
         self.wall.customContextMenuRequested.connect(self._wall_menu)
@@ -958,13 +960,14 @@ class NoteEditor(QWidget):
 def _thumb(pm: QPixmap, size: int):
     from PyQt5.QtGui import QColor, QIcon, QPainter, QPainterPath
 
-    scaled = pm.scaled(size, size, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+    scaled = pm.scaled(size - 2, size - 2, Qt.KeepAspectRatio, Qt.SmoothTransformation)
     out = QPixmap(size, size)
-    out.fill(Qt.transparent)
+    out.fill(QColor("#f3f3f5"))
     p = QPainter(out)
     p.setRenderHint(QPainter.Antialiasing)
+    p.setRenderHint(QPainter.SmoothPixmapTransform)
     path = QPainterPath()
-    path.addRoundedRect(0, 0, size, size, 9, 9)
+    path.addRoundedRect(1, 1, size - 2, size - 2, 9, 9)
     p.setClipPath(path)
     p.drawPixmap((size - scaled.width()) // 2, (size - scaled.height()) // 2, scaled)
     p.end()
