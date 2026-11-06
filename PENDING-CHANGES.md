@@ -37,3 +37,10 @@
 - **内容**：数据菜单新增「导出为 Markdown 文件夹…」，按主题建目录、每条笔记一个带 YAML 头的 `.md`，图片统一放 `attachments/` 用相对路径引用；跳过回收站，重名主题/笔记自动加后缀
 - **文件**：`timodesk/exporter.py`（`export_markdown_tree`）、`timodesk/ui/main_window.py`（`export_md_tree`）
 - **验证**：`test_mdtree.py` 14/14
+
+## 2026-11-06 — 大图查看器支持缩放
+
+- **类型**：体验
+- **内容**：双击图片后的查看器加滚轮缩放（0.1×–8×）、双击在「适应窗口 / 100%」间切换，小图不再被放大糊掉；底部按钮改为深色匹配背景
+- **文件**：`timodesk/ui/editor.py`（`ImageViewer`）
+- **验证**：`test_viewer.py` 10/10

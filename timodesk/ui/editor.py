@@ -50,6 +50,7 @@ from PyQt5.QtWidgets import (
     QMenu,
     QPlainTextEdit,
     QPushButton,
+    QScrollArea,
     QShortcut,
     QSpinBox,
     QSplitter,
@@ -173,21 +174,38 @@ class ImageViewer(QDialog):
         self.idx = start
         self.setWindowTitle("查看图片")
         self.resize(1000, 720)
-        self.setStyleSheet(f"QDialog{{background:{C['ink']};}}")
+        self.setStyleSheet(
+            f"QDialog{{background:{C['ink']};}}"
+            "QPushButton{background:rgba(255,255,255,0.12);color:#f2f2f2;border:0;"
+            "border-radius:8px;padding:6px 18px;}"
+            "QPushButton:hover{background:rgba(255,255,255,0.22);}"
+        )
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
+        self._pm = QPixmap()
+        self.zoom = 0.0  # 0 = 适应窗口，其它值是相对原始尺寸的倍数
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(False)
+        self.scroll.setAlignment(Qt.AlignCenter)
+        self.scroll.setFrameShape(QFrame.NoFrame)
+        self.scroll.setStyleSheet("QScrollArea{background:transparent;}")
         self.label = QLabel()
         self.label.setAlignment(Qt.AlignCenter)
-        lay.addWidget(self.label, 1)
+        self.scroll.setWidget(self.label)
+        lay.addWidget(self.scroll, 1)
         bar = QHBoxLayout()
         bar.setContentsMargins(12, 6, 12, 10)
         prev = QPushButton("‹ 上一张")
+        prev.setCursor(Qt.PointingHandCursor)
         prev.clicked.connect(lambda: self._step(-1))
         bar.addWidget(prev)
+        bar.addStretch(1)
         self.counter = QLabel()
         self.counter.setStyleSheet("color:#cfcfcf;")
-        bar.addWidget(self.counter, alignment=Qt.AlignCenter)
+        bar.addWidget(self.counter)
+        bar.addStretch(1)
         nxt = QPushButton("下一张 ›")
+        nxt.setCursor(Qt.PointingHandCursor)
         nxt.clicked.connect(lambda: self._step(1))
         bar.addWidget(nxt)
         lay.addLayout(bar)
@@ -202,12 +220,54 @@ class ImageViewer(QDialog):
     def _render(self):
         if not self.paths:
             return
-        pm = QPixmap(self.paths[self.idx])
-        if pm.isNull():
+        self._pm = QPixmap(self.paths[self.idx])
+        if self._pm.isNull():
+            self.label.setPixmap(QPixmap())
             self.label.setText("图片无法读取")
         else:
-            self.label.setPixmap(pm.scaled(self.label.size() * 0.98, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-        self.counter.setText(f"{self.idx + 1} / {len(self.paths)}")
+            self.label.setText("")
+            self._apply_zoom()
+        pct = "" if self.zoom <= 0 else f" · {int(self.zoom * 100)}%"
+        self.counter.setText(f"{self.idx + 1} / {len(self.paths)}{pct} · 滚轮缩放")
+
+    def _apply_zoom(self):
+        if self._pm.isNull():
+            return
+        if self.zoom <= 0:
+            box = self.scroll.viewport().size()
+            box.setWidth(max(80, box.width() - 8))
+            box.setHeight(max(80, box.height() - 8))
+            if self._pm.width() > box.width() or self._pm.height() > box.height():
+                pm = self._pm.scaled(box, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            else:
+                pm = self._pm
+        else:
+            w = max(20, int(self._pm.width() * self.zoom))
+            h = max(20, int(self._pm.height() * self.zoom))
+            pm = self._pm.scaled(w, h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        self.label.setPixmap(pm)
+        self.label.resize(pm.size())
+
+    def wheelEvent(self, e):  # noqa: N802
+        if self._pm.isNull():
+            return
+        cur = self.zoom if self.zoom > 0 else 1.0
+        step = 1.25 if e.angleDelta().y() > 0 else 0.8
+        self.zoom = max(0.1, min(8.0, cur * step))
+        self._apply_zoom()
+        pct = "" if self.zoom <= 0 else f" · {int(self.zoom * 100)}%"
+        self.counter.setText(f"{self.idx + 1} / {len(self.paths)}{pct} · 滚轮缩放")
+
+    def mouseDoubleClickEvent(self, e):  # noqa: N802
+        self.zoom = 0.0 if self.zoom > 0 else 1.0
+        self._apply_zoom()
+        pct = "" if self.zoom <= 0 else f" · {int(self.zoom * 100)}%"
+        self.counter.setText(f"{self.idx + 1} / {len(self.paths)}{pct} · 滚轮缩放")
+
+    def resizeEvent(self, e):  # noqa: N802
+        super().resizeEvent(e)
+        if self.zoom <= 0:
+            self._apply_zoom()
 
     def keyPressEvent(self, e):  # noqa: N802
         if e.key() == Qt.Key_Left:
