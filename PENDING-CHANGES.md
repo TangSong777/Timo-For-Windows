@@ -30,3 +30,10 @@
 - **内容**：笔记右键新增「导出为 PDF…」，用预览同一套 HTML 渲染走 `QPrinter`，A4 页边距 16mm
 - **文件**：`timodesk/ui/main_window.py`（`_export_pdf`）
 - **验证**：`test_pdf.py` 4/4，产出文件头 `%PDF-`
+
+## 2026-11-06 — 导出为 Markdown 文件夹
+
+- **类型**：功能
+- **内容**：数据菜单新增「导出为 Markdown 文件夹…」，按主题建目录、每条笔记一个带 YAML 头的 `.md`，图片统一放 `attachments/` 用相对路径引用；跳过回收站，重名主题/笔记自动加后缀
+- **文件**：`timodesk/exporter.py`（`export_markdown_tree`）、`timodesk/ui/main_window.py`（`export_md_tree`）
+- **验证**：`test_mdtree.py` 14/14

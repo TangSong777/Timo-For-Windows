@@ -5,6 +5,7 @@ import csv
 import io
 import json
 import re
+import shutil
 import zipfile
 from pathlib import Path
 
@@ -277,3 +278,125 @@ def export_zip(lib: Library, out: str | Path) -> tuple[Path, dict]:
                 if f.is_file():
                     z.write(f, f"attachments/{f.name}")
     return out, counts
+
+
+# ---------------------------------------------------------------- Markdown 目录
+def _md_body(n: Note, content: str) -> str:
+    """把一条笔记摊平成纯 Markdown（图片用 ../attachments/ 相对路径）。"""
+
+    def img(rel: str) -> str:
+        return f"![](../attachments/{Path(rel).name})"
+
+    if n.type == "article":
+        head = f"# {n.title}" if n.title else ""
+        text = content or ""
+        if head and text.lstrip().startswith(f"# {n.title}"):
+            head = ""
+        return (head + "\n\n" if head else "") + text
+    if n.type == "gallery":
+        parts = [img(r) for r in n.images]
+        if n.description:
+            parts.append(n.description)
+        return "\n\n".join(parts)
+    if n.type == "link":
+        label = n.url or ""
+        return f"[{label}]({label})\n\n{n.description or ''}".strip()
+    if n.type == "account":
+        lines = [f"- 账号：{n.account or ''}"]
+        if n.password:
+            lines.append(f"- 密码：{n.password}")
+        if n.remark:
+            lines.append(f"- 备注：{n.remark}")
+        if n.title:
+            lines.insert(0, f"# {n.title}\n")
+        return "\n".join(lines).strip()
+    if n.type == "date":
+        d = n.date or {}
+        y, m, day = d.get("year"), d.get("month"), d.get("dayOfMonth") or d.get("day")
+        lunar = "农历" if d.get("isLunar") else "公历"
+        repeat = "，每年重复" if d.get("type") == 1 else ""
+        when = f"{y}-{int(m):02d}-{int(day):02d}" if (y and m and day) else ""
+        head = f"# {n.title}" if n.title else ""
+        line = f"- 日期：{when}（{lunar}{repeat}）" if when else ""
+        return "\n\n".join(x for x in (head, line, n.description or "") if x)
+    return content or ""
+
+
+def export_markdown_tree(lib: Library, out: str | Path, progress=None) -> dict:
+    """把整个库导出成「主题/笔记.md + attachments/」的普通 Markdown 目录。"""
+    out = Path(out)
+    out.mkdir(parents=True, exist_ok=True)
+    att_dir = out / "attachments"
+    att_dir.mkdir(exist_ok=True)
+
+    topics = sorted(
+        [t for t in lib.topics.values() if t.state != "trash"],
+        key=lambda t: (t.order, t.created_at),
+    )
+    used_dirs: set[str] = set()
+    dir_of: dict[str, Path] = {}
+    for t in topics:
+        name = safe_name(t.name, "未命名主题")
+        cand, i = name, 2
+        while cand.lower() in used_dirs:
+            cand, i = f"{name}-{i}", i + 1
+        used_dirs.add(cand.lower())
+        d = out / cand
+        d.mkdir(exist_ok=True)
+        dir_of[t.id] = d
+
+    counts = {"topics": 0, "notes": 0, "attachments": 0}
+    copied: set[str] = set()
+    notes = [n for n in lib.notes.values() if n.state != "trash"]
+    for idx, n in enumerate(notes, 1):
+        d = dir_of.get(n.topic_id)
+        if d is None:
+            d = out / "（未分类）"
+            d.mkdir(exist_ok=True)
+            dir_of[n.topic_id] = d
+        content = lib.content(n.id)
+        title = n.display_title(content, "")
+        name = safe_name(title, "未命名")
+        target = d / f"{name}.md"
+        if target.exists():
+            target = d / f"{name}-{short_id(n.id)}.md"
+        body = _md_body(n, content)
+        head = (
+            "---\n"
+            f"title: {json.dumps(title, ensure_ascii=False)}\n"
+            f"type: {TYPE_LABELS.get(n.type, n.type)}\n"
+            f"created: {n.created_at}\n"
+            f"updated: {n.updated_at}\n"
+            "---\n\n"
+        )
+        target.write_text(head + body.rstrip() + "\n", encoding="utf-8")
+        counts["notes"] += 1
+
+        for rel in re.findall(r"\]\(\.\./attachments/([^)\s]+)\)", body):
+            if rel in copied:
+                continue
+            src = lib.attachment_abspath(rel)
+            if src and src.exists():
+                dst = att_dir / Path(rel).name
+                base, k = dst.stem, 2
+                while dst.exists():
+                    dst, k = att_dir / f"{base}-{k}{dst.suffix}", k + 1
+                try:
+                    shutil.copy2(src, dst)
+                    copied.add(rel)
+                    counts["attachments"] += 1
+                except OSError:
+                    pass
+        if progress and idx % 50 == 0:
+            progress(idx, len(notes))
+
+    counts["topics"] = len(dir_of)
+    readme = (
+        "# Timo For Windows 导出\n\n"
+        f"导出时间：{now_iso()}\n\n"
+        f"- 主题 {counts['topics']} 个\n- 笔记 {counts['notes']} 条\n- 图片 {counts['attachments']} 张\n\n"
+        "每个主题一个文件夹，笔记是带 YAML 头的 .md 文件，图片在 `attachments/` 里用相对路径引用。\n"
+        "回收站里的内容没有导出。\n"
+    )
+    (out / "README.md").write_text(readme, encoding="utf-8")
+    return counts

@@ -213,6 +213,7 @@ class MainWindow(QMainWindow):
         menu.addAction("导入文件夹…", self.import_folder)
         menu.addSeparator()
         menu.addAction("导出为 Timo ZIP…", self.export_zip)
+        menu.addAction("导出为 Markdown 文件夹…", self.export_md_tree)
         menu.addAction("打开数据目录", self.open_data_dir)
         menu.addAction("备份与恢复…", self.backup_dialog)
         menu.addAction("应用锁…", self.lock_settings)
@@ -1068,6 +1069,27 @@ class MainWindow(QMainWindow):
             error(self, "导出失败", "没有生成文件，请换个位置再试。")
             return
         self._toast(f"已导出 {Path(path).name}")
+
+    def export_md_tree(self):
+        """导出成「主题/笔记.md + attachments/」，方便交给别的编辑器。"""
+        from ..exporter import export_markdown_tree
+
+        out = QFileDialog.getExistingDirectory(self, "选择导出位置", str(Path.home()))
+        if not out:
+            return
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            counts = export_markdown_tree(self.lib, out)
+        except OSError as e:
+            QApplication.restoreOverrideCursor()
+            error(self, "导出失败", f"写入时出错：\n{e}")
+            return
+        QApplication.restoreOverrideCursor()
+        info(
+            self,
+            "导出完成",
+            f"主题 {counts['topics']} 个、笔记 {counts['notes']} 条、图片 {counts['attachments']} 张。\n\n{out}",
+        )
 
     def set_sort(self, mode: str):
         if mode == getattr(self, "sort_mode", "updated"):
