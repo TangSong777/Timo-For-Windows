@@ -25,6 +25,7 @@ from PyQt5.QtWidgets import (
     QInputDialog,
     QLabel,
     QLineEdit,
+    QListView,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
@@ -308,6 +309,9 @@ class MainWindow(QMainWindow):
         self.note_list.setFrameShape(QListWidget.NoFrame)
         self.note_list.setMouseTracking(True)
         self.note_list.setVerticalScrollMode(QListWidget.ScrollPerPixel)
+        self.note_list.setUniformItemSizes(True)
+        self.note_list.setLayoutMode(QListView.Batched)
+        self.note_list.setBatchSize(80)
         self.note_list.setSpacing(0)
         self.note_list.setSelectionMode(QListWidget.ExtendedSelection)
         self.note_list.setDragEnabled(True)
@@ -537,13 +541,17 @@ class MainWindow(QMainWindow):
             self.header_label.setText(f"搜索「{self._search_buf}」")
 
         self.note_list.blockSignals(True)
-        self.note_list.clear()
-        for n in notes:
-            it = QListWidgetItem()
-            it.setData(Qt.UserRole, n.id)
-            it.setSizeHint(QSize(0, 100))
-            self.note_list.addItem(it)
-        self.note_list.blockSignals(False)
+        self.note_list.setUpdatesEnabled(False)
+        try:
+            self.note_list.clear()
+            for n in notes:
+                it = QListWidgetItem()
+                it.setData(Qt.UserRole, n.id)
+                it.setSizeHint(QSize(0, 100))
+                self.note_list.addItem(it)
+        finally:
+            self.note_list.setUpdatesEnabled(True)
+            self.note_list.blockSignals(False)
         self.count_label.setText(str(len(notes)) if notes else "")
         if notes:
             self.note_list.show()

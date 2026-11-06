@@ -253,9 +253,11 @@ def run():
     except Exception:
         pass
 
+    # 默认不自动清理回收站：删数据的事交给用户自己点「清空回收站」。
+    # 想开的话在 settings.json 里写 "trash_days": 30 之类。
     purged = 0
     try:
-        purged = lib.purge_trash(int(settings.get("trash_days", 30) or 0))
+        purged = lib.purge_trash(int(settings.get("trash_days", 0) or 0))
     except Exception:
         purged = 0
 

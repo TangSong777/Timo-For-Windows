@@ -9,6 +9,8 @@
 
 ## 下载
 
+安装包约 104 MB，解开后约 128 MB，双击就能用，不写注册表。
+
 到 [Releases](../../releases/latest) 下载 **`Timo For Windows 安装包.exe`**。
 
 要求：Windows 10 / 11 64 位。

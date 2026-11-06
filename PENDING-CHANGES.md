@@ -8,6 +8,18 @@
 
 ---
 
+## 2026-11-06 — 减负与优化
+
+- 打包裁剪用不到的 Qt 库：Qml / QmlModels / Quick / Pdf / VirtualKeyboard / WebSockets / DBus / Network / ANGLE（libEGL + libGLESv2），共 10 个文件。
+  - `dist/Timo For Windows` 145.6 MB → **127.6 MB**（231 个文件），安装包 111.9 MB → **104.0 MB**。
+  - 保留 `icudt73.dll`（30.5 MB，缺了程序起不来）与 `opengl32sw.dll`（20 MB，给没有显卡驱动的机器兜底）。
+  - 裁剪清单固化在 `tools/make-portable.py` 的 `PRUNE` + `prune()`，每次打包自动执行。
+- 启动更快：`note_list.setUniformItemSizes(True)` + `QListView.Batched` 布局（批大小 80）；`_reload_notes` 批量加项时 `setUpdatesEnabled(False)` + `blockSignals(True)`。
+  - 主窗口构建 1.46s → **1.06s**；全部 ↔ 归档切换 0.01s。
+- 回收站**不再默认自动清理**：原来 `trash_days` 默认 30，启动时会静默删掉 30 天前的回收站笔记（实测把示例库的 25 条删了）。现在默认 0（关闭），要开在 `Data/settings.json` 写 `"trash_days": 30`；清空回收站仍走数据菜单的手动操作。
+- 验证：26 个测试脚本全绿（test_pdf 需正常平台、offscreen 下字体缺失会退化）；裁剪后 exe 启动、窗口正常，图片插件（qjpeg/qwebp…）与打印插件（windowsprintersupport）都在。
+
+
 ## 2026-11-06 — 搜索命中高亮
 
 - **类型**：功能

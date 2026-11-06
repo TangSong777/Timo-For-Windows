@@ -31,6 +31,23 @@ EXCLUDES = [
     "pytest",
 ]
 
+# 裁掉用不到的 Qt 运行库：Qt 的 QML/Quick/PDF/虚拟键盘/WebSockets/DBus/Network 我们都没用，
+# ANGLE（libEGL + libGLESv2）在桌面 OpenGL 可用的机器上也不会走。
+# 这些文件删掉后主程序、导入导出、图库、PDF 导出都实测正常（Qt 仍然保留 icudt/opengl32sw，
+# 前者缺了中文会起不来，后者是给没有显卡驱动（远程桌面/虚拟机）的机器兜底的）。
+PRUNE = [
+    "Qt5Qml_conda.dll",
+    "Qt5QmlModels_conda.dll",
+    "Qt5Quick_conda.dll",
+    "Qt5Pdf_conda.dll",
+    "Qt5VirtualKeyboard_conda.dll",
+    "Qt5WebSockets_conda.dll",
+    "Qt5DBus_conda.dll",
+    "Qt5Network_conda.dll",
+    "libGLESv2.dll",
+    "libEGL.dll",
+]
+
 
 def version() -> str:
     ns: dict = {}
@@ -68,6 +85,22 @@ def build_main() -> None:
     pyinstaller(*args)
     if not (APP_DIR / "Timo For Windows.exe").exists():
         raise SystemExit("主程序没有打出来：" + str(APP_DIR))
+    prune()
+
+
+def prune() -> None:
+    """删掉确定用不到的 Qt 运行库，减掉约 22 MB。"""
+    internal = APP_DIR / "_internal"
+    saved = 0
+    removed = []
+    for name in PRUNE:
+        p = internal / name
+        if p.exists():
+            saved += p.stat().st_size
+            p.unlink()
+            removed.append(name)
+    if removed:
+        print(f"      裁剪 {len(removed)} 个 Qt 库，省 {saved / 1024 / 1024:.1f} MB")
 
 
 def build_payload() -> None:
