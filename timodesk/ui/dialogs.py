@@ -17,7 +17,9 @@ from PyQt5.QtWidgets import (
 from .theme import C
 from .title_bar import FramelessDialog
 
-_BTN_QSS = f"""
+def _btn_qss() -> str:
+    """按钮样式（每次调用时按当前主题生成，切深色后才不会串色）。"""
+    return f"""
 QPushButton#Primary {{
     background: {C['ink']}; color: {C['on_ink']}; border: none;
     border-radius: 8px; padding: 9px 22px; font-size: 13px;
@@ -47,7 +49,7 @@ class MessageDialog(FramelessDialog):
     def __init__(self, parent, title: str, text: str, ok_text="好", cancel_text=None):
         super().__init__(parent, title)
         self.ok = False
-        self.setStyleSheet(_BTN_QSS + f"QLabel#MsgText{{color:{C['ink']};font-size:13px;}}")
+        self.setStyleSheet(_btn_qss() + f"QLabel#MsgText{{color:{C['ink']};font-size:13px;}}")
 
         lay = QVBoxLayout(self.body)
         lay.setContentsMargins(28, 22, 28, 20)
@@ -84,7 +86,7 @@ class ProgressDialog(FramelessDialog):
     def __init__(self, parent, title: str, text: str):
         super().__init__(parent, title)
         self._canceled = False
-        self.setStyleSheet(_BTN_QSS + f"""
+        self.setStyleSheet(_btn_qss() + f"""
             QLabel#ProgText {{ color: {C['ink']}; font-size: 13px; }}
             QProgressBar {{ background: {C['line_soft']}; border: none; border-radius: 3px; }}
             QProgressBar::chunk {{ background: {C['ink']}; border-radius: 3px; }}
@@ -150,7 +152,7 @@ class ReminderDialog(FramelessDialog):
         from datetime import datetime, timedelta
 
         super().__init__(parent, "设置提醒")
-        self.setStyleSheet(_BTN_QSS)
+        self.setStyleSheet(_btn_qss())
         from PyQt5.QtCore import QDate, QTime
         from PyQt5.QtWidgets import QDateEdit, QHBoxLayout, QLabel, QPushButton, QTimeEdit
 
@@ -294,7 +296,7 @@ class BackupDialog(FramelessDialog):
         super().__init__(parent, "备份与恢复")
         from PyQt5.QtWidgets import QHBoxLayout, QListWidget, QPushButton
 
-        self.setStyleSheet(_BTN_QSS)
+        self.setStyleSheet(_btn_qss())
         self.lib = lib
         self.restored = False
         self.setFixedSize(520, 460)
@@ -413,7 +415,7 @@ class ImportModeDialog(FramelessDialog):
         super().__init__(parent, "导入 Timo 数据")
         from PyQt5.QtWidgets import QHBoxLayout
 
-        self.setStyleSheet(_BTN_QSS)
+        self.setStyleSheet(_btn_qss())
         self.mode: str | None = None
         self.setFixedSize(460, 232)
 
@@ -474,7 +476,7 @@ class AboutDialog(FramelessDialog):
         super().__init__(parent, "关于")
         from PyQt5.QtWidgets import QHBoxLayout
 
-        self.setStyleSheet(_BTN_QSS)
+        self.setStyleSheet(_btn_qss())
         self.setFixedSize(520, 540)
 
         lay = QVBoxLayout(self.body)
@@ -530,3 +532,110 @@ class AboutDialog(FramelessDialog):
         btn.clicked.connect(self.accept)
         bottom.addWidget(btn)
         lay.addLayout(bottom)
+
+
+class TrashTopicsDialog(FramelessDialog):
+    """已删除的主题：恢复（连同当初一起进回收站的笔记）或彻底删除。"""
+
+    def __init__(self, parent, lib):
+        super().__init__(parent, "已删除的主题")
+        from PyQt5.QtWidgets import QListWidget
+
+        self.setStyleSheet(_btn_qss())
+        self.lib = lib
+        self.changed = False
+        self.setFixedSize(500, 430)
+
+        lay = QVBoxLayout(self.body)
+        lay.setContentsMargins(28, 22, 28, 22)
+        lay.setSpacing(12)
+
+        tip = QLabel("删掉的主题会先放在这里。恢复时，当初跟着它一起进回收站的笔记也会回到这个主题。")
+        tip.setWordWrap(True)
+        tip.setStyleSheet(f"color:{C['muted']};font-size:12px;")
+        lay.addWidget(tip)
+
+        self.empty = QLabel("没有已删除的主题。")
+        self.empty.setStyleSheet(f"color:{C['faint']};font-size:13px;")
+        lay.addWidget(self.empty)
+
+        self.list = QListWidget()
+        self.list.setObjectName("TrashTopicList")
+        self.list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.list.setStyleSheet(
+            f"QListWidget#TrashTopicList{{background:{C['card']};border:1px solid {C['card_border']};"
+            f"border-radius:10px;padding:4px;}}"
+            f"QListWidget#TrashTopicList::item{{padding:9px 8px;border-radius:6px;color:{C['ink']};}}"
+            f"QListWidget#TrashTopicList::item:selected{{background:{C['hover_bg']};color:{C['ink']};}}"
+        )
+        self.list.itemDoubleClicked.connect(lambda _=None: self._restore())
+        lay.addWidget(self.list, 1)
+
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        self.btn_restore = QPushButton("恢复所选")
+        self.btn_restore.setObjectName("Primary")
+        self.btn_purge = QPushButton("彻底删除")
+        self.btn_purge.setObjectName("Plain")
+        btn_close = QPushButton("关闭")
+        btn_close.setObjectName("Link")
+        for b in (self.btn_restore, self.btn_purge):
+            b.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.btn_restore.clicked.connect(self._restore)
+        self.btn_purge.clicked.connect(self._purge)
+        btn_close.clicked.connect(self.reject)
+        row.addWidget(self.btn_restore)
+        row.addWidget(self.btn_purge)
+        row.addStretch(1)
+        row.addWidget(btn_close)
+        lay.addLayout(row)
+
+        self._reload()
+
+    def _reload(self) -> None:
+        from PyQt5.QtWidgets import QListWidgetItem
+
+        self.list.clear()
+        topics = self.lib.trashed_topics()
+        for t in topics:
+            cnt = self.lib.topic_note_count(t.id)
+            when = (t.deleted_at or "")[:10]
+            item = QListWidgetItem(f"{t.name}      {cnt} 条笔记      删除于 {when}")
+            item.setData(Qt.UserRole, t.id)
+            self.list.addItem(item)
+        if topics:
+            self.list.setCurrentRow(0)
+        self.list.setVisible(bool(topics))
+        self.empty.setVisible(not topics)
+        self.btn_restore.setEnabled(bool(topics))
+        self.btn_purge.setEnabled(bool(topics))
+
+    def _restore(self) -> None:
+        item = self.list.currentItem()
+        if not item:
+            return
+        n = self.lib.restore_topic(item.data(Qt.UserRole))
+        self.changed = True
+        self._reload()
+        info(self, "已恢复", f"主题已恢复，带回 {n} 条笔记。" if n else "主题已恢复。")
+
+    def _purge(self) -> None:
+        item = self.list.currentItem()
+        if not item:
+            return
+        tid = item.data(Qt.UserRole)
+        t = self.lib.topics.get(tid)
+        if not t:
+            return
+        cnt = self.lib.topic_note_count(tid)
+        if not confirm(
+            self,
+            "彻底删除主题",
+            f"「{t.name}」及其中 {cnt} 条笔记会被永久删除，无法恢复。",
+            ok_text="彻底删除",
+        ):
+            return
+        n = self.lib.purge_topic(tid)
+        self.changed = True
+        self._reload()
+        info(self, "已删除", f"主题与 {n} 条笔记已永久删除。")

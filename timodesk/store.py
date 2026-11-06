@@ -392,11 +392,54 @@ class Library:
                 t.state = "trash"
                 # 和手机版一致：删主题时，主题里还在用的笔记一起进回收站
                 ts = now_iso()
+                t.deleted_at = ts
                 for n in self.notes.values():
                     if n.topic_id == topic_id and n.state == "active":
                         n.state = "trash"
                         n.deleted_at = ts
         self.save()
+
+    def trashed_topics(self) -> list[Topic]:
+        """回收站里的主题，最近删的在前。"""
+        ts = [t for t in self.topics.values() if t.state == "trash"]
+        ts.sort(key=lambda t: t.deleted_at or "", reverse=True)
+        return ts
+
+    def topic_note_count(self, topic_id: str, state: str | None = None) -> int:
+        return sum(
+            1 for n in self.notes.values()
+            if n.topic_id == topic_id and (state is None or n.state == state)
+        )
+
+    def restore_topic(self, topic_id: str) -> int:
+        """恢复主题；当初跟着主题一起进回收站的笔记也一并恢复，返回恢复的笔记数。"""
+        t = self.topics.get(topic_id)
+        if not t or t.state != "trash":
+            return 0
+        stamp = t.deleted_at
+        t.state = "active"
+        t.deleted_at = None
+        t.updated_at = now_iso()
+        n = 0
+        if stamp:
+            for note in self.notes.values():
+                if note.topic_id == topic_id and note.state == "trash" and note.deleted_at == stamp:
+                    note.state = "active"
+                    note.deleted_at = None
+                    n += 1
+        self.save()
+        return n
+
+    def purge_topic(self, topic_id: str) -> int:
+        """彻底删掉主题与它名下所有笔记（含回收站），返回删掉的笔记数。"""
+        if topic_id not in self.topics:
+            return 0
+        ids = [n.id for n in self.notes.values() if n.topic_id == topic_id]
+        for nid in ids:
+            self.delete_note(nid, hard=True)
+        self.topics.pop(topic_id, None)
+        self.save()
+        return len(ids)
 
     def reorder_topics(self, ordered_ids: list[str]) -> None:
         for i, tid in enumerate(ordered_ids):

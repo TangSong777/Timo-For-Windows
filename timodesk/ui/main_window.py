@@ -232,6 +232,7 @@ class MainWindow(QMainWindow):
         menu.addAction("导出为 Markdown 文件夹…", self.export_md_tree)
         menu.addAction("打开数据目录", self.open_data_dir)
         menu.addAction("备份与恢复…", self.backup_dialog)
+        menu.addAction("已删除的主题…", self.trash_topics_dialog)
         menu.addSeparator()
         menu.addAction("清空回收站…", self.empty_trash)
         menu.addSeparator()
@@ -1275,6 +1276,16 @@ class MainWindow(QMainWindow):
         self._edge.update()
         self.editor.refresh_theme()
         self.update()
+
+    def trash_topics_dialog(self):
+        """回收站里的主题：恢复（连同笔记）或彻底删除。"""
+        from .dialogs import TrashTopicsDialog
+
+        dlg = TrashTopicsDialog(self, self.lib)
+        dlg.exec_()
+        if dlg.changed:
+            self.refresh_topics()
+            self._reload_notes(animate=True)
 
     def show_about(self):
         from timodesk import __version__
