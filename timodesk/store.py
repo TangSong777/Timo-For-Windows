@@ -322,10 +322,11 @@ class Library:
             out.sort(key=lambda n: n.sort_key(order))
         return out
 
-    def note_counts(self) -> dict[str, int]:
+    def note_counts(self, state: str = "active") -> dict[str, int]:
+        """各主题下的笔记数；state 默认只数正常笔记，归档主题要看 archived。"""
         counts: dict[str, int] = {}
         for n in self.notes.values():
-            if n.state == "active":
+            if n.state == state:
                 counts[n.topic_id] = counts.get(n.topic_id, 0) + 1
         return counts
 

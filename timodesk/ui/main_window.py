@@ -416,10 +416,16 @@ class MainWindow(QMainWindow):
         self.topic_list.clear()
         topics = [t for t in self.lib.topics.values() if t.state != "trash"]
         topics.sort(key=lambda t: (t.order, t.created_at))
+        active_counts = self.lib.note_counts("active")
+        archived_counts = self.lib.note_counts("archived")
+        counts = {t.id: (archived_counts if t.state == "archived" else active_counts).get(t.id, 0) for t in topics}
+        dlg = self.topic_list.itemDelegate()
+        if dlg is not None:
+            dlg.counts = counts
         for t in topics:
             it = QListWidgetItem(t.name)
             it.setData(Qt.UserRole, t)
-            it.setToolTip(f"{t.name} · {self.lib.note_counts().get(t.id, 0)} 条")
+            it.setToolTip(f"{t.name} · {counts.get(t.id, 0)} 条")
             self.topic_list.addItem(it)
         if current:
             for i in range(self.topic_list.count()):

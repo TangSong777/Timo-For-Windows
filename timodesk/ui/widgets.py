@@ -289,6 +289,7 @@ class TopicDelegate(QStyledItemDelegate):
     def __init__(self, lib, parent=None):
         super().__init__(parent)
         self.lib = lib
+        self.counts: dict[str, int] = {}
 
     def sizeHint(self, option, index) -> QSize:
         return QSize(180, 36)
@@ -316,7 +317,7 @@ class TopicDelegate(QStyledItemDelegate):
             painter.setBrush(QColor(C["ink"]))
             painter.drawRoundedRect(QRectF(r.left() + 2, r.center().y() - 8, 2.5, 16), 1.2, 1.2)
 
-        cnt = self.lib.note_counts().get(topic.id, 0)
+        cnt = self.counts.get(topic.id, 0)
 
         archived = getattr(topic, "state", "active") == "archived"
         name_font = QFont(option.font)
