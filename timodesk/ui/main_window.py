@@ -479,6 +479,7 @@ class MainWindow(QMainWindow):
     def _topic_menu(self, pos):
         it = self.topic_list.itemAt(pos)
         if not it:
+            self._topic_sort_menu(pos)
             return
         topic = it.data(Qt.UserRole)
         menu = QMenu(self)
@@ -525,6 +526,40 @@ class MainWindow(QMainWindow):
             self.lib.save()
             self.refresh_topics()
             self.select_nav("all")
+
+    def _topic_sort_menu(self, pos):
+        menu = QMenu(self)
+        a_name = menu.addAction("主题按名称排序")
+        a_count = menu.addAction("主题按笔记数排序")
+        a_time = menu.addAction("主题按最近更新排序")
+        act = menu.exec_(self.topic_list.mapToGlobal(pos))
+        if act is a_name:
+            self.sort_topics("name")
+        elif act is a_count:
+            self.sort_topics("count")
+        elif act is a_time:
+            self.sort_topics("updated")
+
+    def sort_topics(self, by: str):
+        """把主题列表重新排一遍（只影响非回收站主题，结果写回 order）。"""
+        topics = [t for t in self.lib.topics.values() if t.state != "trash"]
+        if len(topics) < 2:
+            return
+        if by == "name":
+            topics.sort(key=lambda t: (t.name.lower(), t.created_at))
+            label = "名称"
+        elif by == "count":
+            counts = self.lib.note_counts()
+            arch = self.lib.note_counts("archived")
+            topics.sort(key=lambda t: (-(counts if t.state != "archived" else arch).get(t.id, 0), t.name.lower()))
+            label = "笔记数"
+        else:
+            topics.sort(key=lambda t: (t.updated_at or t.created_at or ""), reverse=True)
+            label = "最近更新"
+        self.lib.reorder_topics([t.id for t in topics])
+        self.lib.save()
+        self.refresh_topics()
+        self._toast(f"主题已按{label}排序")
 
     def _topic_name_taken(self, name: str, exclude_id: str | None = None) -> bool:
         """是否已有同名主题（回收站里的不算，重命名自己也不算）。"""
