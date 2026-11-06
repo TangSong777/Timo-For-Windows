@@ -181,12 +181,18 @@ _TYPE_MARK = {
 
 
 def _date_text(d: dict) -> str:
+    from ..store import date_countdown
+
     t = d.get("type", 0)
     lunar = "农历" if d.get("isLunar") else "公历"
     if t == 0:
-        return f"{d.get('year')}年{d.get('month')}月{d.get('dayOfMonth')}日 · {lunar}"
-    if t == 1:
-        return f"每年 {d.get('month')}月{d.get('dayOfMonth')}日 · {lunar}"
+        base = f"{d.get('year')}年{d.get('month')}月{d.get('dayOfMonth')}日 · {lunar}"
+    elif t == 1:
+        base = f"每年 {d.get('month')}月{d.get('dayOfMonth')}日 · {lunar}"
+    else:
+        return ""
+    delta = date_countdown(d)
+    return f"{base} · {delta}" if delta else base
     return f"{d.get('month')}月{d.get('dayOfMonth')}日"
 
 

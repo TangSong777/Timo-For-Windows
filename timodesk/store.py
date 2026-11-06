@@ -66,6 +66,47 @@ def from_iso(s: str | None):
         return None
 
 
+def date_countdown(d: dict, today=None) -> str:
+    """「日子」笔记的倒数文案：还有 N 天 / 就是今天 / 已过去 N 天。
+
+    每年重复的只算月日（今年已过就顺延到明年）；无效日期返回空串。
+    """
+    if not isinstance(d, dict):
+        return ""
+    try:
+        m = int(d.get("month") or 0)
+        day = int(d.get("dayOfMonth") or d.get("day") or 0)
+    except (TypeError, ValueError):
+        return ""
+    if not (1 <= m <= 12 and 1 <= day <= 31):
+        return ""
+    from datetime import date as _date
+
+    base = today or _date.today()
+    try:
+        if int(d.get("type") or 0) == 1:
+            try:
+                target = _date(base.year, m, day)
+            except ValueError:
+                return ""
+            if target < base:
+                try:
+                    target = _date(base.year + 1, m, day)
+                except ValueError:
+                    return ""
+        else:
+            year = int(d.get("year") or base.year)
+            target = _date(year, m, day)
+    except (ValueError, TypeError):
+        return ""
+    delta = (target - base).days
+    if delta == 0:
+        return "就是今天"
+    if delta > 0:
+        return f"还有 {delta} 天"
+    return f"已过去 {-delta} 天"
+
+
 def parse_iso(s: str | None) -> float:
     """把 ISO 时间转成时间戳，用于排序；坏值返回 0。"""
     if not s:

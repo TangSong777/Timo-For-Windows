@@ -63,7 +63,7 @@ from PyQt5.QtWidgets import (
 )
 
 from ..render import TASK_RE, render
-from ..store import TYPE_LABELS, Library, Note
+from ..store import date_countdown, TYPE_LABELS, Library, Note
 from .dialogs import error as dlg_error
 from .theme import C, NOTE_COLORS, color_icon
 from .widgets import AutoFadeScrollBar
@@ -701,8 +701,10 @@ class NoteEditor(QWidget):
         cl.addSpacing(8)
 
         row = QHBoxLayout()
+        row.setSpacing(7)
         self.date_type = QComboBox()
         self.date_type.addItems(["固定日期", "每年重复"])
+        self.date_type.setMinimumWidth(112)
         self.date_type.currentIndexChanged.connect(self._on_date_changed)
         row.addWidget(self.date_type)
         self.date_year = QSpinBox()
@@ -941,6 +943,16 @@ class NoteEditor(QWidget):
         else:
             parts.append("每年重复")
         parts.append("农历" if self.date_lunar.isChecked() else "公历")
+        delta = date_countdown(
+            {
+                "type": self.date_type.currentIndex(),
+                "year": y,
+                "month": m,
+                "dayOfMonth": d,
+            }
+        )
+        if delta:
+            parts.append(delta)
         self.date_sub.setText(" · ".join(parts))
 
     # ================= 正文 =================
