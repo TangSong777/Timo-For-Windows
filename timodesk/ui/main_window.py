@@ -488,6 +488,9 @@ class MainWindow(QMainWindow):
             dlg = InputDialog(self, "重命名主题", "主题名称", text=topic.name)
             name = dlg.value if dlg.exec_() else None
             if name:
+                if self._topic_name_taken(name, exclude_id=topic.id):
+                    info(self, "已有同名主题", f"已经有一个叫「{name}」的主题了，换个名字吧。")
+                    return
                 self.lib.rename_topic(topic.id, name)
                 self.lib.save()
                 self.refresh_topics()
@@ -507,12 +510,23 @@ class MainWindow(QMainWindow):
             self.refresh_topics()
             self.select_nav("all")
 
+    def _topic_name_taken(self, name: str, exclude_id: str | None = None) -> bool:
+        """是否已有同名主题（回收站里的不算，重命名自己也不算）。"""
+        key = name.strip()
+        return any(
+            t.name.strip() == key and t.state != "trash" and t.id != exclude_id
+            for t in self.lib.topics.values()
+        )
+
     def new_topic(self):
         from .dialogs import InputDialog
 
         dlg = InputDialog(self, "新建主题", "主题名称", placeholder="比如：日记、工作、读书")
         name = dlg.value if dlg.exec_() else None
         if not name:
+            return
+        if self._topic_name_taken(name):
+            info(self, "已有同名主题", f"已经有一个叫「{name}」的主题了，换个名字吧。")
             return
         t = self.lib.add_topic(name)
         self.lib.save()
