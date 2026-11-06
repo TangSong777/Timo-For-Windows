@@ -287,12 +287,16 @@ def _md_body(n: Note, content: str) -> str:
     def img(rel: str) -> str:
         return f"![](../attachments/{Path(rel).name})"
 
+    def fix_refs(text: str) -> str:
+        """正文里的 attachments/ 是相对数据目录的，导出成文件后要往上退一级。"""
+        return re.sub(r"\]\(attachments/", "](../attachments/", text or "")
+
     if n.type == "article":
         head = f"# {n.title}" if n.title else ""
         text = content or ""
         if head and text.lstrip().startswith(f"# {n.title}"):
             head = ""
-        return (head + "\n\n" if head else "") + text
+        return (head + "\n\n" if head else "") + fix_refs(text)
     if n.type == "gallery":
         parts = [img(r) for r in n.images]
         if n.description:
@@ -319,7 +323,7 @@ def _md_body(n: Note, content: str) -> str:
         head = f"# {n.title}" if n.title else ""
         line = f"- 日期：{when}（{lunar}{repeat}）" if when else ""
         return "\n\n".join(x for x in (head, line, n.description or "") if x)
-    return content or ""
+    return fix_refs(content)
 
 
 def export_markdown_tree(lib: Library, out: str | Path, progress=None) -> dict:
@@ -345,7 +349,7 @@ def export_markdown_tree(lib: Library, out: str | Path, progress=None) -> dict:
         d.mkdir(exist_ok=True)
         dir_of[t.id] = d
 
-    counts = {"topics": 0, "notes": 0, "attachments": 0}
+    counts = {"topics": 0, "notes": 0, "attachments": 0, "missing": 0}
     copied: set[str] = set()
     notes = [n for n in lib.notes.values() if n.state != "trash"]
     for idx, n in enumerate(notes, 1):
@@ -369,24 +373,37 @@ def export_markdown_tree(lib: Library, out: str | Path, progress=None) -> dict:
             f"updated: {n.updated_at}\n"
             "---\n\n"
         )
+        # 先把图片搬过去（同名不同内容会加后缀），再把正文里的引用换成实际文件名
+        att_map: dict[str, str] = {}
+        for rel in re.findall(r"\]\(\.\./attachments/([^)\s]+)\)", body):
+            if rel in att_map:
+                continue
+            base_name = Path(rel).name
+            src = lib.attachment_abspath(rel)
+            if not src or not src.exists():
+                # 原始数据里就没有这张图：保留引用但记一笔，别让用户以为导出坏了
+                att_map[rel] = base_name
+                counts["missing"] += 1
+                continue
+            name, k = base_name, 2
+            dst = att_dir / name
+            while dst.exists():
+                name = f"{Path(rel).stem}-{k}{Path(rel).suffix}"
+                dst = att_dir / name
+                k += 1
+            try:
+                shutil.copy2(src, dst)
+                att_map[rel] = name
+                counts["attachments"] += 1
+            except OSError:
+                att_map[rel] = base_name
+        for rel, name in att_map.items():
+            if name != Path(rel).name:
+                body = body.replace(f"../attachments/{rel}", f"../attachments/{name}")
+
         target.write_text(head + body.rstrip() + "\n", encoding="utf-8")
         counts["notes"] += 1
-
-        for rel in re.findall(r"\]\(\.\./attachments/([^)\s]+)\)", body):
-            if rel in copied:
-                continue
-            src = lib.attachment_abspath(rel)
-            if src and src.exists():
-                dst = att_dir / Path(rel).name
-                base, k = dst.stem, 2
-                while dst.exists():
-                    dst, k = att_dir / f"{base}-{k}{dst.suffix}", k + 1
-                try:
-                    shutil.copy2(src, dst)
-                    copied.add(rel)
-                    counts["attachments"] += 1
-                except OSError:
-                    pass
+        copied.update(att_map)
         if progress and idx % 50 == 0:
             progress(idx, len(notes))
 
@@ -394,7 +411,13 @@ def export_markdown_tree(lib: Library, out: str | Path, progress=None) -> dict:
     readme = (
         "# Timo For Windows 导出\n\n"
         f"导出时间：{now_iso()}\n\n"
-        f"- 主题 {counts['topics']} 个\n- 笔记 {counts['notes']} 条\n- 图片 {counts['attachments']} 张\n\n"
+        f"- 主题 {counts['topics']} 个\n- 笔记 {counts['notes']} 条\n- 图片 {counts['attachments']} 张\n"
+        + (
+            f"- 另有 {counts['missing']} 处图片在原数据里就缺失，引用保留但文件没有\n"
+            if counts["missing"]
+            else ""
+        )
+        + "\n"
         "每个主题一个文件夹，笔记是带 YAML 头的 .md 文件，图片在 `attachments/` 里用相对路径引用。\n"
         "回收站里的内容没有导出。\n"
     )
