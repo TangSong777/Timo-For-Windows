@@ -259,6 +259,12 @@ def run():
     except Exception:
         pass
 
+    purged = 0
+    try:
+        purged = lib.purge_trash(int(settings.get("trash_days", 30) or 0))
+    except Exception:
+        purged = 0
+
     win = MainWindow(lib)
     win.settings = settings
     tray = TrayIcon(win)
@@ -266,6 +272,10 @@ def run():
     tray.show()
     app.setQuitOnLastWindowClosed(False)
     win.show()
+    if purged:
+        from PyQt5.QtCore import QTimer
+
+        QTimer.singleShot(1500, lambda: win._toast(f"回收站里 {purged} 条超过 30 天的笔记已清理"))
     return app.exec_()
 
 

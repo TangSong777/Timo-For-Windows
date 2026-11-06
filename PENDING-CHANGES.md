@@ -44,3 +44,10 @@
 - **内容**：双击图片后的查看器加滚轮缩放（0.1×–8×）、双击在「适应窗口 / 100%」间切换，小图不再被放大糊掉；底部按钮改为深色匹配背景
 - **文件**：`timodesk/ui/editor.py`（`ImageViewer`）
 - **验证**：`test_viewer.py` 10/10
+
+## 2026-11-06 — 回收站自动清理
+
+- **类型**：维护
+- **内容**：启动时把回收站里删除超过 30 天的笔记彻底删掉（含正文文件），清了多少条用轻提示告知；`settings.json` 的 `trash_days` 设 0 可关闭
+- **文件**：`timodesk/store.py`（`purge_trash`）、`timodesk/app.py`
+- **验证**：`test_trash.py` 8/8

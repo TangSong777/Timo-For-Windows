@@ -356,6 +356,22 @@ class Library:
         if t:
             t.updated_at = now_iso()
 
+    def purge_trash(self, days: int = 30) -> int:
+        """彻底删掉回收站里躺了超过 days 天的笔记；days<=0 表示不清理。"""
+        if days <= 0:
+            return 0
+        cutoff = time.time() - days * 86400
+        gone = [
+            n.id
+            for n in list(self.notes.values())
+            if n.state == "trash" and 0 < parse_iso(n.deleted_at or n.updated_at) < cutoff
+        ]
+        for nid in gone:
+            self.delete_note(nid, hard=True)
+        if gone:
+            self.save()
+        return len(gone)
+
     def delete_note(self, note_id: str, hard: bool = False) -> None:
         n = self.notes.get(note_id)
         if not n:
