@@ -26,3 +26,9 @@
 ## 2026-11-06 — 深色模式的对话框与细节修正
 - 「关于」框统计条、备份列表（背景与选中）、搜索高亮改为跟随主题；新增 `C['hl_bg']`（浅 #d0d0d0 / 深 #4a4a52），预览高亮与主题一致。
 - `test_hl.py` 的底色断言改为读取 `C['hl_bg']`，不再写死。
+
+## 2026-11-06 — 多选拖拽与健壮性
+- 笔记列表支持**多选后一起拖到主题**：`NoteList.startDrag` 把选中 id 以 JSON 写入 MIME；`TopicList` 信号改为 `notesDropped(list, topic_id)`；`Library.move_notes(ids, topic_id)` 一次落盘，拖完 toast 提示「已移动 N 条」。
+- 搜索框按 `Esc` 清空搜索并回到列表。
+- `Library.save()` 的 `os.replace` 加 6 次重试（Windows 杀毒/索引短暂占用时不再抛 `PermissionError`）。
+- `test_drag.py` 改为每次重建测试库（幂等），并覆盖批量移动；全量 26 个脚本连续两轮全绿。

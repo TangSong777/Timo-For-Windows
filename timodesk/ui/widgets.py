@@ -1,6 +1,7 @@
 """自绘列表控件：主题条目与笔记卡片。"""
 from __future__ import annotations
 
+import json
 from datetime import datetime
 
 from PyQt5.QtCore import QMimeData, QPoint, QRect, QRectF, QSize, Qt, pyqtSignal
@@ -297,14 +298,13 @@ class NoteList(QListWidget):
     MIME = "application/x-timo-note"
 
     def startDrag(self, actions):  # noqa: N802
-        it = self.currentItem()
-        if it is None:
+        items = self.selectedItems() or ([self.currentItem()] if self.currentItem() else [])
+        ids = [i.data(Qt.UserRole) for i in items if i.data(Qt.UserRole)]
+        if not ids:
             return
-        nid = it.data(Qt.UserRole)
-        if not nid:
-            return
+        it = items[0]
         mime = QMimeData()
-        mime.setData(self.MIME, str(nid).encode("utf-8"))
+        mime.setData(self.MIME, json.dumps(ids).encode("utf-8"))
         drag = QDrag(self)
         drag.setMimeData(mime)
         rect = self.visualItemRect(it)
@@ -318,7 +318,7 @@ class NoteList(QListWidget):
 class TopicList(QListWidget):
     """主题列表：内部可拖动排序，也接受从笔记列表拖来的笔记。"""
 
-    noteDropped = pyqtSignal(str, str)
+    notesDropped = pyqtSignal(list, str)
 
     def _is_note(self, e) -> bool:
         return e.mimeData().hasFormat(NoteList.MIME)
@@ -339,12 +339,19 @@ class TopicList(QListWidget):
         if not self._is_note(e):
             super().dropEvent(e)
             return
-        nid = bytes(e.mimeData().data(NoteList.MIME)).decode("utf-8", "ignore")
+        raw = bytes(e.mimeData().data(NoteList.MIME)).decode("utf-8", "ignore")
         it = self.itemAt(e.pos())
         e.acceptProposedAction()
-        if not nid or it is None:
+        if not raw or it is None:
             return
+        try:
+            ids = json.loads(raw)
+        except ValueError:
+            ids = [raw]
+        if isinstance(ids, str):
+            ids = [ids]
+        ids = [str(i) for i in ids if i]
         topic = it.data(Qt.UserRole)
         tid = getattr(topic, "id", None)
-        if tid:
-            self.noteDropped.emit(nid, tid)
+        if ids and tid:
+            self.notesDropped.emit(ids, tid)

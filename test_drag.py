@@ -1,4 +1,6 @@
 """拖动笔记到主题：信号通路与移动结果。"""
+import json
+import shutil
 import sys
 from pathlib import Path
 
@@ -10,6 +12,7 @@ from timodesk.ui.main_window import MainWindow
 
 app = QApplication(sys.argv)
 root = Path("worklib_drag")
+shutil.rmtree(root, ignore_errors=True)
 lib = Library(root).load()
 if not lib.topics:
     a = lib.add_topic("甲")
@@ -18,7 +21,8 @@ if not lib.topics:
     lib.save()
 tops = lib.sorted_topics()
 a, b = tops[0], tops[1]
-nid = next(n.id for n in lib.notes.values() if n.topic_id == a.id and n.state == "active")
+nid = next(n.id for n in lib.notes.values() if n.state == "active")
+lib.move_notes([nid], a.id)
 
 w = MainWindow(lib)
 w.resize(1280, 830)
@@ -37,10 +41,10 @@ def check(name, cond):
 
 
 # 1. 信号连接
-check("noteDropped 已连接", w.topic_list.receivers(w.topic_list.noteDropped) > 0)
+check("notesDropped 已连接", w.topic_list.receivers(w.topic_list.notesDropped) > 0)
 
 # 2. 直接发信号（等价于 drop）
-w.topic_list.noteDropped.emit(nid, b.id)
+w.topic_list.notesDropped.emit([nid], b.id)
 app.processEvents()
 check("笔记已移动到新主题", lib.notes[nid].topic_id == b.id)
 check("library.json 已落盘", Library(root).load().notes[nid].topic_id == b.id)
@@ -50,7 +54,7 @@ counts = lib.note_counts()
 check("目标主题计数 = 1", counts.get(b.id, 0) == 1)
 
 # 4. 同主题再拖一次：无变化
-w.topic_list.noteDropped.emit(nid, b.id)
+w.topic_list.notesDropped.emit([nid], b.id)
 app.processEvents()
 check("重复拖到同一主题不报错", lib.notes[nid].topic_id == b.id)
 
@@ -69,7 +73,7 @@ for i in range(w.topic_list.count()):
         target_row = i
         break
 mime = QMimeData()
-mime.setData(NoteList.MIME, nid.encode("utf-8"))
+mime.setData(NoteList.MIME, json.dumps([nid]).encode("utf-8"))
 rect = w.topic_list.visualItemRect(w.topic_list.item(target_row))
 ev = QDropEvent(QPointF(rect.center()), Qt.MoveAction, mime, Qt.LeftButton, Qt.NoModifier)
 w.topic_list.dropEvent(ev)
@@ -80,6 +84,16 @@ check("dropEvent 解析 MIME 并移动回甲", lib.notes[nid].topic_id == a.id)
 w.view = ("topic", a.id)
 w._reload_notes()
 check("主题视图列表包含该笔记", w.note_list.count() == 1)
+
+# 8. 多选批量拖拽：两条笔记一起拖到乙
+nid2 = lib.add_note(a.id, "note", content="第二条", title="批量二").id
+lib.save()
+w.topic_list.notesDropped.emit([nid, nid2], b.id)
+app.processEvents()
+check("批量移动：两条都在乙", lib.notes[nid].topic_id == b.id and lib.notes[nid2].topic_id == b.id)
+check("批量移动只存一次盘", Library(root).load().notes[nid2].topic_id == b.id)
+moved = lib.move_notes([nid, nid2], b.id)
+check("同主题批量移动返回 0", moved == 0)
 
 print(f"\n{ok}/{total} PASS")
 sys.exit(0 if ok == total else 1)

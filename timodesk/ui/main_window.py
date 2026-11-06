@@ -213,7 +213,7 @@ class MainWindow(QMainWindow):
         self.topic_list.setContextMenuPolicy(Qt.CustomContextMenu)
         self.topic_list.customContextMenuRequested.connect(self._topic_menu)
         self.topic_list.currentRowChanged.connect(self._on_topic_changed)
-        self.topic_list.noteDropped.connect(self._on_note_dropped)
+        self.topic_list.notesDropped.connect(self._on_notes_dropped)
         sb.addWidget(self.topic_list, 1)
 
         sb.addSpacing(4)
@@ -309,6 +309,9 @@ class MainWindow(QMainWindow):
         lp.addLayout(head)
 
         self.search = QLineEdit(objectName="Search")
+        esc_search = QShortcut(QKeySequence("Escape"), self.search)
+        esc_search.setContext(Qt.WidgetShortcut)
+        esc_search.activated.connect(self._clear_search)
         self.search.setPlaceholderText("搜索笔记…  Ctrl+F")
         self.search.addAction(_search_icon(), QLineEdit.LeadingPosition)
         self.search.setTextMargins(4, 0, 0, 0)
@@ -622,16 +625,19 @@ class MainWindow(QMainWindow):
         else:
             self._reload_notes(select_id=self.editor.note.id if self.editor.note else None)
 
-    def _on_note_dropped(self, note_id: str, topic_id: str):
-        """把笔记拖到左侧主题上：移动到该主题。"""
-        note = self.lib.notes.get(note_id)
-        if note is None or note.topic_id == topic_id:
+    def _on_notes_dropped(self, note_ids, topic_id: str):
+        """把笔记（可多选）拖到左侧主题上：批量移动到该主题。"""
+        ids = [i for i in note_ids if i in self.lib.notes]
+        if not ids:
             return
         self._flush_save()
-        self.lib.move_note(note_id, topic_id)
-        self.lib.save()
+        moved = self.lib.move_notes(ids, topic_id)
+        if not moved:
+            return
         self.refresh_topics()
         self._reload_notes(animate=True)
+        if len(ids) > 1:
+            self._toast(f"已移动 {len(ids)} 条笔记")
 
     def _on_note_changed(self, row: int):
         if row < 0:
@@ -1031,6 +1037,11 @@ class MainWindow(QMainWindow):
         from PyQt5.QtCore import QUrl
 
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.lib.root)))
+
+    def _clear_search(self):
+        if self.search.text():
+            self.search.clear()
+        self.note_list.setFocus()
 
     def _toast(self, text: str, ms: int = 1600):
         """不改变布局的小提示：贴着鼠标弹一个 tooltip。"""

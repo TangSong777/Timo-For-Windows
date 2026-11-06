@@ -212,7 +212,15 @@ class Library:
         }
         tmp = self.json_path.with_suffix(".json.tmp")
         tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
-        os.replace(tmp, self.json_path)
+        # Windows 上杀毒/索引服务偶尔会短暂占用目标文件，重试几次再放弃
+        for attempt in range(6):
+            try:
+                os.replace(tmp, self.json_path)
+                break
+            except PermissionError:
+                if attempt == 5:
+                    raise
+                time.sleep(0.05 * (attempt + 1))
 
     # ---------- 查询 ----------
     def content(self, note_id: str) -> str:
@@ -421,6 +429,21 @@ class Library:
             n.topic_id = topic_id
             n.updated_at = now_iso()
             self.save()
+
+    def move_notes(self, note_ids, topic_id: str) -> int:
+        """批量移动到主题，返回实际移动的条数（只存一次盘）。"""
+        if topic_id not in self.topics:
+            return 0
+        moved = 0
+        for nid in note_ids:
+            n = self.notes.get(nid)
+            if n and n.topic_id != topic_id:
+                n.topic_id = topic_id
+                n.updated_at = now_iso()
+                moved += 1
+        if moved:
+            self.save()
+        return moved
 
     def toggle_pin(self, note_id: str) -> None:
         n = self.notes.get(note_id)
