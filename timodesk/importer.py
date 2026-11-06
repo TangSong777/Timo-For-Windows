@@ -25,12 +25,15 @@ class ImportReport:
     warnings: list[str] = field(default_factory=list)
     skipped: int = 0
     mode: str = "replace"
+    renamed: int = 0
 
     def summary(self) -> str:
         if self.mode == "merge":
             s = f"合并完成：新增 {self.notes} 条笔记、{self.attachments} 个附件"
             if self.skipped:
                 s += f"\n已存在而跳过 {self.skipped} 条"
+            if self.renamed:
+                s += f"\n{self.renamed} 个同名主题已自动加序号区分"
         else:
             s = f"导入完成：{self.topics} 个主题、{self.notes} 条笔记、{self.attachments} 个附件"
         if self.missing_attachments:
@@ -155,9 +158,19 @@ def import_export(src: str | os.PathLike, lib: Library, progress=None, mode: str
         for i, t in enumerate(topic_list):
             if merge and t["id"] in lib.topics:
                 continue
+            name = t.get("name") or "未命名主题"
+            if merge:
+                # 另一个手机导出的主题 id 不同、名字可能一样，加序号免得侧栏出现两个同名
+                taken = {x.name for x in lib.topics.values() if x.state != "trash"}
+                if name in taken:
+                    base, n = name, 2
+                    while f"{base}（{n}）" in taken:
+                        n += 1
+                    name = f"{base}（{n}）"
+                    report.renamed += 1
             lib.topics[t["id"]] = Topic(
                 id=t["id"],
-                name=t.get("name") or "未命名主题",
+                name=name,
                 mode=t.get("mode") or "white",
                 locked=bool(t.get("locked")),
                 state=t.get("state") or "active",
