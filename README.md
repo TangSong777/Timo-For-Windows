@@ -5,6 +5,10 @@
 
 ![主界面](docs/screenshot-main.png)
 
+深色模式（数据与设置 → 外观 → 深色，也可跟随系统）：
+
+![深色模式](docs/screenshot-dark.png)
+
 > 非官方项目，与 Timo 官方无关。本仓库只处理用户自己导出的数据，不包含、也不分发 Timo 的应用本体。
 
 ## 下载

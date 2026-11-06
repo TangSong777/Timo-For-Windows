@@ -32,3 +32,4 @@
 - 搜索框按 `Esc` 清空搜索并回到列表。
 - `Library.save()` 的 `os.replace` 加 6 次重试（Windows 杀毒/索引短暂占用时不再抛 `PermissionError`）。
 - `test_drag.py` 改为每次重建测试库（幂等），并覆盖批量移动；全量 26 个脚本连续两轮全绿。
+- README 补深色模式截图 `docs/screenshot-dark.png`。
