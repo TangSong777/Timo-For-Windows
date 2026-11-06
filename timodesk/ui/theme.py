@@ -170,6 +170,14 @@ QPushButton#NewNoteBtn {{
 }}
 QPushButton#NewNoteBtn:hover {{ background: #000000; }}
 QPushButton#NewNoteBtn:pressed {{ background: #333333; }}
+QToolButton#SortBtn {{
+    border: none; background: transparent; border-radius: 7px;
+    color: {C['muted']}; font-size: {int(13 * s)}px;
+}}
+QToolButton#SortBtn:hover {{ background: {C['paper_alt']}; color: {C['ink']}; }}
+QToolButton#SortBtn:pressed {{ background: {C['line']}; }}
+QToolButton#SortBtn::menu-indicator {{ image: none; width: 0px; }}
+
 QToolButton#NewTypeBtn {{
     background: {C['ink']}; color: #ffffff; border: none;
     border-radius: 0 10px 10px 0;

@@ -113,9 +113,11 @@ class MainWindow(QMainWindow):
         self.tray = None
         self.setAcceptDrops(True)
         self.settings = Settings(self.lib.root)
+        self.sort_mode = self.settings.get("sort_mode", "updated")
         self._quitting = False
         self._tray_hinted = False
         self._build_ui()
+        self._sync_sort_menu()
         self._restore_geometry()
         self._build_shortcuts()
         self._save_timer = QTimer(self)
@@ -238,6 +240,19 @@ class MainWindow(QMainWindow):
         self.count_label = QLabel("", objectName="CountLabel")
         head.addWidget(self.count_label, alignment=Qt.AlignBottom)
         head.addStretch(1)
+        self.btn_sort = QToolButton(objectName="SortBtn")
+        self.btn_sort.setText("⇅")
+        self.btn_sort.setPopupMode(QToolButton.InstantPopup)
+        self.btn_sort.setFixedSize(26, 26)
+        self.btn_sort.setCursor(Qt.PointingHandCursor)
+        self.sort_menu = QMenu(self)
+        for key, label in (("updated", "最近更新"), ("created", "最近创建"), ("title", "标题")):
+            act = self.sort_menu.addAction(label)
+            act.setCheckable(True)
+            act.setData(key)
+            act.triggered.connect(lambda _=False, k=key: self.set_sort(k))
+        self.btn_sort.setMenu(self.sort_menu)
+        head.addWidget(self.btn_sort, alignment=Qt.AlignVCenter)
         newslot = QHBoxLayout()
         newslot.setContentsMargins(0, 0, 0, 0)
         newslot.setSpacing(0)
@@ -412,15 +427,16 @@ class MainWindow(QMainWindow):
     # ---------------- 列表 ----------------
     def _current_notes(self) -> list[Note]:
         kind, tid = self.view
+        order = getattr(self, "sort_mode", "updated")
         if kind == "all":
-            return self.lib.sorted_notes(state="active")
+            return self.lib.sorted_notes(state="active", order=order)
         if kind == "archived":
-            return self.lib.sorted_notes(state="archived")
+            return self.lib.sorted_notes(state="archived", order=order)
         if kind == "trash":
-            return self.lib.sorted_notes(state="trash")
+            return self.lib.sorted_notes(state="trash", order=order)
         t = self.lib.topics.get(tid)
         state = "archived" if (t and t.state == "archived") else "active"
-        return self.lib.topic_notes(tid, state=state)
+        return self.lib.topic_notes(tid, state=state, order=order)
 
     def _fade_in(self, widget: QWidget, ms: int = 180):
         """短暂的透明度过渡，用于切换视图、页面时的柔和出现。"""
@@ -932,6 +948,20 @@ class MainWindow(QMainWindow):
         from PyQt5.QtCore import QUrl
 
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.lib.root)))
+
+    def set_sort(self, mode: str):
+        if mode == getattr(self, "sort_mode", "updated"):
+            return
+        self.sort_mode = mode
+        self.settings.set("sort_mode", mode)
+        self._sync_sort_menu()
+        self._reload_notes(animate=True)
+
+    def _sync_sort_menu(self):
+        labels = {"updated": "最近更新", "created": "最近创建", "title": "标题"}
+        for act in self.sort_menu.actions():
+            act.setChecked(act.data() == self.sort_mode)
+        self.btn_sort.setToolTip(f"排序：{labels.get(self.sort_mode, '最近更新')}")
 
     def show_about(self):
         from timodesk import __version__

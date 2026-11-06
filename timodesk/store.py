@@ -129,8 +129,14 @@ class Note:
         return asdict(self)
 
     # 稳定排序键：置顶优先，其次 pinned/updated 时间
-    def sort_key(self) -> tuple:
-        return (0 if self.pinned_at else 1, -parse_iso(self.pinned_at or self.updated_at or self.created_at))
+    def sort_key(self, mode: str = "updated", content: str = "") -> tuple:
+        pin = 0 if self.pinned_at else 1
+        if mode == "created":
+            return (pin, -parse_iso(self.created_at))
+        if mode == "title":
+            title = self.display_title(content)
+            return (pin, title.lower())
+        return (pin, -parse_iso(self.updated_at or self.created_at))
 
     def display_title(self, content: str = "", topic_name: str = "") -> str:
         """列表里显示的标题：有标题用标题，否则取正文首行。"""
@@ -230,9 +236,12 @@ class Library:
         ts.sort(key=lambda t: (t.order, t.created_at))
         return ts
 
-    def topic_notes(self, topic_id: str | None, state: str = "active") -> list[Note]:
+    def topic_notes(self, topic_id: str | None, state: str = "active", order: str = "updated") -> list[Note]:
         out = [n for n in self.notes.values() if n.state == state and (topic_id is None or n.topic_id == topic_id)]
-        out.sort(key=lambda n: n.sort_key())
+        if order == "title":
+            out.sort(key=lambda n: n.sort_key(order, self._content.get(n.id, "")))
+        else:
+            out.sort(key=lambda n: n.sort_key(order))
         return out
 
     def note_counts(self) -> dict[str, int]:
@@ -242,9 +251,12 @@ class Library:
                 counts[n.topic_id] = counts.get(n.topic_id, 0) + 1
         return counts
 
-    def sorted_notes(self, state: str = "active", topic_id: str | None = None) -> list[Note]:
+    def sorted_notes(self, state: str = "active", topic_id: str | None = None, order: str = "updated") -> list[Note]:
         out = [n for n in self.notes.values() if n.state == state and (topic_id is None or n.topic_id == topic_id)]
-        out.sort(key=lambda n: n.sort_key())
+        if order == "title":
+            out.sort(key=lambda n: n.sort_key(order, self._content.get(n.id, "")))
+        else:
+            out.sort(key=lambda n: n.sort_key(order))
         return out
 
     def search(self, query: str, state: str = "active", pool: list[Note] | None = None) -> list[Note]:
