@@ -181,6 +181,32 @@ class WelcomeDialog(FramelessDialog):
         self.accept()
 
 
+def recover_library(lib, notify: bool = True) -> bool:
+    """library.json 读坏了：先试着用最近一份备份覆盖，不行就提示用户。"""
+    from .backup import list_all, restore
+    from .ui.dialogs import error, info
+
+    items = list_all(lib.root)
+    if items:
+        try:
+            restore(lib, items[0]["path"])
+            lib.load()
+            lib.load_error = None
+            if notify:
+                info(None, "数据文件损坏", f"笔记索引读取失败，已用最近的备份（{items[0]['name']}）恢复。")
+            return True
+        except Exception:  # noqa: BLE001
+            pass
+    if notify:
+        error(
+            None,
+            "数据文件损坏",
+            "笔记索引（library.json）读取失败，坏掉的文件已留档为 library.json.broken-时间戳。\n\n"
+            "可以先退出，从 Data/backup 里挑一份备份，用「数据与设置 → 备份与恢复」恢复。",
+        )
+    return False
+
+
 def _import_with_progress(lib: Library, path: str) -> bool:
     pr = ProgressDialog(None, "导入 Timo 数据", "正在导入，请稍候…")
     pr.show()
@@ -241,6 +267,8 @@ def run():
     _schedule_delete(delete_targets)
 
     lib = Library(root).load()
+    if lib.load_error:
+        recover_library(lib)
 
     cli = next((a for a in args if a and Path(a).exists()), "")
     if cli:

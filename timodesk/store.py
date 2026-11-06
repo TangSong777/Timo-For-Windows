@@ -199,6 +199,7 @@ class Library:
         self.topics: dict[str, Topic] = {}
         self.notes: dict[str, Note] = {}
         self._content: dict[str, str] = {}
+        self.load_error: str | None = None
         self._dirty = False
 
     # ---------- 路径 ----------
@@ -227,9 +228,21 @@ class Library:
     def load(self) -> "Library":
         self.notes_dir.mkdir(parents=True, exist_ok=True)
         self.attachments_dir.mkdir(parents=True, exist_ok=True)
+        self.load_error = None
         if not self.json_path.exists():
             return self
-        data = json.loads(self.json_path.read_text(encoding="utf-8"))
+        try:
+            data = json.loads(self.json_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            # 元数据坏了：留档后以空库启动，别让程序连窗口都打不开
+            self.load_error = f"{type(exc).__name__}: {exc}"
+            stamp = time.strftime("%Y%m%d-%H%M%S")
+            broken = self.root / f"library.json.broken-{stamp}"
+            try:
+                self.json_path.rename(broken)
+            except OSError:
+                pass
+            return self
         self.topics = {t["id"]: Topic(**t) for t in data.get("topics", [])}
         self.notes = {n["id"]: Note(**n) for n in data.get("notes", [])}
         for n in self.notes.values():
