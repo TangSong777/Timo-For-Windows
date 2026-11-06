@@ -149,6 +149,7 @@ QLineEdit#Search {{
 }}
 QLineEdit#Search:focus {{ background: {C['card']}; border: 1px solid {C['ink']}; }}
 
+#ListEmpty {{ color: {C['faint']}; font-size: {int(12 * s)}px; line-height:1.6; }}
 QListWidget#NoteList {{ background: {C['card']}; border: none; padding: 2px; }}
 QListWidget#NoteList::item {{ border: none; margin: 0px; }}
 

@@ -351,6 +351,9 @@ class NoteEditor(QWidget):
         gl.addLayout(bar)
 
         self.wall = QListWidget()
+        self.wall.setDragDropMode(QListWidget.InternalMove)
+        self.wall.setDefaultDropAction(Qt.MoveAction)
+        self.wall.model().rowsMoved.connect(self._on_wall_reordered)
         self.wall.setViewMode(QListWidget.IconMode)
         self.wall.setIconSize(QSize(190, 190))
         self.wall.setGridSize(QSize(198, 202))
@@ -766,6 +769,20 @@ class NoteEditor(QWidget):
             }
         return n
 
+    def _on_wall_reordered(self, *args):
+        """拖动图片后把新顺序写回笔记（只在图库类型下有效）。"""
+        if not self.note or self.note.type != "gallery":
+            return
+        order = []
+        for i in range(self.wall.count()):
+            rel = self._rel_for_path(self.wall.item(i).data(Qt.UserRole))
+            if rel:
+                order.append(rel)
+        if len(order) == len(self.note.images) and order != self.note.images:
+            self.note.images = order
+            self.lib.save()
+            self.metaChanged.emit()
+
     # ================= 图片墙 =================
     def _reload_wall(self):
         self.wall.clear()
@@ -825,21 +842,26 @@ class NoteEditor(QWidget):
         if not self.note:
             return
         files, _ = QFileDialog.getOpenFileNames(self, "选择图片", "", "图片 (*.png *.jpg *.jpeg *.gif *.webp *.bmp)")
+        if not files:
+            return
         for f in files:
-            self._add_image(f)
+            self._add_image(f, reload=False)
+        self._reload_wall()
+        self.metaChanged.emit()
 
     def _insert_image_file(self, path: str):
         if not self.note:
             return
         self._add_image(path)
 
-    def _add_image(self, path: str):
+    def _add_image(self, path: str, reload: bool = True):
         rel = self.lib.import_attachment(path)
         if self.note.type == "gallery":
             self.note.images.append(rel)
             self.lib.save()
-            self._reload_wall()
-            self.metaChanged.emit()
+            if reload:
+                self._reload_wall()
+                self.metaChanged.emit()
         else:
             cursor = self.edit.textCursor()
             cursor.insertText(f"\n![图片]({rel})\n")

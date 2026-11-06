@@ -261,6 +261,11 @@ class MainWindow(QMainWindow):
         self.note_list.customContextMenuRequested.connect(self._note_menu)
         self.note_list.currentRowChanged.connect(self._on_note_changed)
         self.note_list.setUniformItemSizes(True)
+        self.list_empty = QLabel("", objectName="ListEmpty")
+        self.list_empty.setAlignment(Qt.AlignCenter)
+        self.list_empty.setWordWrap(True)
+        self.list_empty.hide()
+        lp.addWidget(self.list_empty, 1)
         lp.addWidget(self.note_list, 1)
         h.addWidget(listpane)
 
@@ -442,6 +447,20 @@ class MainWindow(QMainWindow):
             self.note_list.addItem(it)
         self.note_list.blockSignals(False)
         self.count_label.setText(str(len(notes)) if notes else "")
+        if notes:
+            self.note_list.show()
+            self.list_empty.hide()
+        else:
+            self.note_list.hide()
+            if self._search_buf:
+                self.list_empty.setText(f"没有找到「{self._search_buf}」相关的笔记")
+            elif kind == "trash":
+                self.list_empty.setText("回收站是空的")
+            elif kind == "archived":
+                self.list_empty.setText("还没有归档的笔记")
+            else:
+                self.list_empty.setText("这里还没有笔记\n点「＋ 新建」开始记录")
+            self.list_empty.show()
 
         # 保留当前选中
         target = select_id or (self.editor.note.id if self.editor.note else None)
@@ -455,6 +474,8 @@ class MainWindow(QMainWindow):
             self.note_list.blockSignals(True)
             self.note_list.setCurrentRow(found)
             self.note_list.blockSignals(False)
+            if select_id:
+                self.note_list.scrollToItem(self.note_list.item(found))
             self.editor.set_note(self.lib.notes.get(target))
         else:
             self.note_list.blockSignals(True)
