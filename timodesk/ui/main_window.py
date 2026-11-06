@@ -641,6 +641,9 @@ class MainWindow(QMainWindow):
             else:
                 pool = self.lib.sorted_notes(state="active") + self.lib.sorted_notes(state="archived")
             notes = self.lib.search(self._search_buf, pool=pool)
+            # 搜索结果也跟着当前的排序方式走，不然和列表其它时候不一致
+            if self.sort_mode != "updated":
+                notes.sort(key=lambda n: n.sort_key(self.sort_mode, self.lib.content(n.id)))
             self.header_label.setText(f"搜索「{self._search_buf}」")
 
         self.note_list.blockSignals(True)
