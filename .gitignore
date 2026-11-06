@@ -37,3 +37,4 @@ cmp_*.png
 _types_tmp/
 _ui_tmp/
 tmp/
+probe_*.png
