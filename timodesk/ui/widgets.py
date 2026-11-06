@@ -226,34 +226,68 @@ class NoteCardDelegate(QStyledItemDelegate):
         painter.restore()
 
 
-def _draw_line(painter, rect, line, term, fm) -> None:
-    """画一行摘要；命中搜索词的部分刷一层底色，其余保持灰色。"""
-    term = (term or "").strip()
+def _spans(line: str, terms: list[str]) -> list[tuple[int, int]]:
+    """一行里所有命中词的位置（重叠的部分合并）。"""
     low = line.lower()
-    i = low.find(term.lower()) if term else -1
-    if i < 0:
+    found: list[tuple[int, int]] = []
+    for t in terms:
+        t = t.lower()
+        if not t:
+            continue
+        at = 0
+        while True:
+            i = low.find(t, at)
+            if i < 0:
+                break
+            found.append((i, i + len(t)))
+            at = i + len(t)
+    if not found:
+        return []
+    found.sort()
+    merged = [found[0]]
+    for s0, e0 in found[1:]:
+        if s0 <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], e0))
+        else:
+            merged.append((s0, e0))
+    return merged
+
+
+def _draw_line(painter, rect, line, term, fm) -> None:
+    """画一行摘要；命中搜索词的部分刷一层底色，其余保持灰色。支持空格分开的多个词。"""
+    terms = [w for w in (term or "").split() if w]
+    spans = _spans(line, terms)
+    if not spans:
         painter.drawText(rect, Qt.AlignLeft | Qt.AlignVCenter, line)
         return
-    parts = (line[:i], line[i:i + len(term)], line[i + len(term):])
     x = rect.left()
-    for k, seg in enumerate(parts):
-        if not seg:
-            continue
-        w = fm.width(seg)
-        if k == 1:
-            painter.fillRect(
-                QRect(x - 1, rect.top() + 3, w + 2, rect.height() - 6),
-                QColor(C["hl_bg"]),
-            )
-            painter.setPen(QColor(C["ink"]))
-        else:
+    pos = 0
+    for s0, e0 in spans:
+        if x > rect.right():
+            break
+        if s0 > pos:
+            seg = line[pos:s0]
+            w = fm.width(seg)
             painter.setPen(QColor(C["muted"]))
-        painter.drawText(
-            QRect(x, rect.top(), w + 2, rect.height()),
-            Qt.AlignLeft | Qt.AlignVCenter,
-            seg,
+            painter.drawText(QRect(x, rect.top(), w + 2, rect.height()), Qt.AlignLeft | Qt.AlignVCenter, seg)
+            x += w
+        seg = line[s0:e0]
+        w = fm.width(seg)
+        painter.fillRect(
+            QRect(x - 1, rect.top() + 3, w + 2, rect.height() - 6), QColor(C["hl_bg"])
         )
+        painter.setPen(QColor(C["ink"]))
+        painter.drawText(QRect(x, rect.top(), w + 2, rect.height()), Qt.AlignLeft | Qt.AlignVCenter, seg)
         x += w
+        pos = e0
+    if pos < len(line) and x <= rect.right():
+        seg = line[pos:]
+        painter.setPen(QColor(C["muted"]))
+        painter.drawText(
+            QRect(x, rect.top(), rect.width(), rect.height()),
+            Qt.AlignLeft | Qt.AlignVCenter,
+            fm.elidedText(seg, Qt.ElideRight, max(0, rect.right() - x)),
+        )
     painter.setPen(QColor(C["muted"]))
 
 
