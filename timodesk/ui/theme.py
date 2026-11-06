@@ -1,28 +1,35 @@
 """Timo 桌面版的视觉主题。
 
-黑白灰为主：白纸底、近黑文字、浅灰分隔线与悬停态。
+黑白灰为主：浅灰画布上浮着白色圆角卡片，接近黑文字、极淡分隔线。
+质感来自三层：画布底色 → 卡片（1px 边 + 柔和投影）→ 卡片内部控件。
 强调色就是黑色本身（主按钮黑底白字），不引入彩色主题。
 笔记的彩色标记（NOTE_COLORS）仍按 Timo 的 color 字段保留，属于内容不属于皮肤。
 """
 from __future__ import annotations
 
 C = {
+    # 画布与卡片
+    "canvas": "#ededf0",
     "paper": "#ffffff",
-    "paper_alt": "#f7f7f7",
+    "paper_alt": "#fafafb",
     "card": "#ffffff",
-    "card_hover": "#fafafa",
-    "ink": "#1f1f1f",
-    "ink_soft": "#3f3f3f",
-    "muted": "#737373",
-    "faint": "#a3a3a3",
-    "line": "#e4e4e4",
-    "line_soft": "#f0f0f0",
-    # 强调色（历史命名保留：green 系列现在就是黑）
-    "green": "#1f1f1f",
+    "card_hover": "#f8f8fa",
+    "card_border": "#ebebed",
+    "card_border_strong": "#dedee2",
+    # 文字
+    "ink": "#1d1d1f",
+    "ink_soft": "#3a3a3c",
+    "muted": "#86868b",
+    "faint": "#a8a8ad",
+    # 分隔
+    "line": "#ececee",
+    "line_soft": "#f4f4f6",
+    # 强调（历史命名保留：green 系列现在就是黑）
+    "green": "#1d1d1f",
     "green_dark": "#000000",
-    "green_soft": "#efefef",
+    "green_soft": "#efeff1",
     "lime": "#d6d6d6",
-    "lime_soft": "#ededed",
+    "lime_soft": "#ededef",
     "danger": "#b4302a",
     "danger_soft": "#f7e7e5",
     "amber": "#7a5c22",
@@ -46,6 +53,19 @@ FONT_TEXT = '"Microsoft YaHei", "Segoe UI", "PingFang SC", sans-serif'
 FONT_MONO = '"Cascadia Code", "Consolas", "JetBrains Mono", monospace'
 
 
+def add_shadow(widget, blur: int = 26, y: int = 6, alpha: int = 24):
+    """给控件挂一层柔和投影。只用在数量少、不随滚动重绘的控件上。"""
+    from PyQt5.QtGui import QColor
+    from PyQt5.QtWidgets import QGraphicsDropShadowEffect
+
+    eff = QGraphicsDropShadowEffect(widget)
+    eff.setBlurRadius(blur)
+    eff.setOffset(0, y)
+    eff.setColor(QColor(0, 0, 0, alpha))
+    widget.setGraphicsEffect(eff)
+    return eff
+
+
 def app_qss(scale: float = 1.0) -> str:
     s = scale
     return f"""
@@ -55,139 +75,163 @@ QWidget {{
     font-size: {int(13 * s)}px;
     color: {C['ink']};
 }}
-QMainWindow, #Root {{ background: {C['paper']}; }}
+QMainWindow, #Root, #Body {{ background: {C['canvas']}; }}
+
+/* ---------- 卡片容器 ---------- */
+#Sidebar, #ListPane, #EditorPane {{
+    background: {C['card']};
+    border: 1px solid {C['card_border']};
+    border-radius: 16px;
+}}
 
 /* ---------- 侧栏 ---------- */
-#Sidebar {{
-    background: {C['paper_alt']};
-    border-right: 1px solid {C['line']};
-}}
 #Brand {{
     font-family: {FONT_TEXT};
     font-size: {int(23 * s)}px;
     font-weight: 600;
     color: {C['ink']};
-    letter-spacing: 0.5px;
+    letter-spacing: 0.4px;
 }}
 #BrandSub {{ color: {C['muted']}; font-size: {int(11 * s)}px; }}
 #SideSection {{ color: {C['faint']}; font-size: {int(11 * s)}px; font-weight: 600; padding: 2px 6px; }}
 #NewTopicBtn {{
-    background: transparent; border: 1px dashed {C['line']};
-    border-radius: 8px; color: {C['muted']}; padding: 7px 10px;
+    background: {C['paper_alt']}; border: 1px solid {C['card_border']};
+    border-radius: 10px; color: {C['muted']}; padding: 8px 10px;
 }}
-#NewTopicBtn:hover {{ border-color: {C['ink']}; color: {C['ink']}; background: {C['card']}; }}
+#NewTopicBtn:hover {{ border-color: {C['card_border_strong']}; color: {C['ink']}; background: #f2f2f5; }}
 
 QListWidget#TopicList, QListWidget#NavList {{
-    background: transparent; border: none;
+    background: {C['card']}; border: none;
 }}
-QListWidget#TopicList::item, QListWidget#NavList::item {{
-    border-radius: 8px; padding: 7px 8px; margin: 1px 4px;
+QListWidget#NavList::item {{
+    border-radius: 9px; padding: 8px 9px; margin: 1px 3px;
 }}
-QListWidget#TopicList::item:selected, QListWidget#NavList::item:selected {{
-    background: #e9e9e9; color: {C['ink']};
+QListWidget#NavList::item:selected {{
+    background: #ececee; color: {C['ink']};
 }}
-QListWidget#TopicList::item:hover, QListWidget#NavList::item:hover {{
-    background: {C['card']};
+QListWidget#NavList::item:hover {{
+    background: {C['card_hover']};
 }}
 
 /* ---------- 中栏 ---------- */
-#ListPane {{ background: {C['paper']}; border-right: 1px solid {C['line']}; }}
 #ListHeader {{ font-size: {int(15 * s)}px; font-weight: 600; color: {C['ink']}; }}
 #CountLabel {{ color: {C['faint']}; font-size: {int(11 * s)}px; }}
 
 QLineEdit#Search {{
-    background: {C['card']}; border: 1px solid {C['line']}; border-radius: 9px;
-    padding: 8px 12px; selection-background-color: {C['ink']}; selection-color: #fff;
+    background: #f5f5f7; border: 1px solid transparent; border-radius: 11px;
+    padding: 9px 13px; selection-background-color: {C['ink']}; selection-color: #fff;
 }}
-QLineEdit#Search:focus {{ border-color: {C['ink']}; }}
+QLineEdit#Search:focus {{ background: {C['card']}; border: 1px solid {C['ink']}; }}
 
-QListWidget#NoteList {{ background: transparent; border: none; padding: 2px; }}
+QListWidget#NoteList {{ background: {C['card']}; border: none; padding: 2px; }}
 QListWidget#NoteList::item {{ border: none; margin: 0px; }}
 
 QPushButton#NewNoteBtn {{
-    background: {C['ink']}; color: #ffffff; border: none; border-radius: 9px;
-    padding: 9px 14px; font-weight: 600;
+    background: {C['ink']}; color: #ffffff; border: none; border-radius: 10px;
+    padding: 9px 15px; font-weight: 600;
 }}
 QPushButton#NewNoteBtn:hover {{ background: #000000; }}
+QPushButton#NewNoteBtn:pressed {{ background: #333333; }}
 
 /* ---------- 编辑区 ---------- */
-#EditorPane {{ background: {C['card']}; }}
 #EditorTopBar {{ background: {C['card']}; border-bottom: 1px solid {C['line_soft']}; }}
 #TypeBadge {{
-    color: {C['ink_soft']}; background: #f0f0f0;
-    border-radius: 6px; padding: 2px 8px; font-size: {int(11 * s)}px; font-weight: 600;
+    color: {C['ink_soft']}; background: #f2f2f4;
+    border-radius: 7px; padding: 3px 9px; font-size: {int(11 * s)}px; font-weight: 600;
 }}
 #SaveState {{ color: {C['faint']}; font-size: {int(11 * s)}px; }}
 
 QLineEdit#NoteTitle {{
     background: transparent; border: none; padding: 2px 0;
-    font-family: {FONT_TEXT}; font-size: {int(22 * s)}px; font-weight: 600; color: {C['ink']};
+    font-family: {FONT_TEXT}; font-size: {int(22 * s)}px; font-weight: 500; color: {C['ink']};
 }}
 QLineEdit#NoteTitle::placeholder {{ color: {C['faint']}; }}
+QLineEdit#NoteTitle:focus {{ border-bottom: 1px solid {C['card_border']}; }}
 
 QPlainTextEdit#Editor {{
     background: {C['card']}; border: none; padding: 18px 26px;
     font-family: {FONT_TEXT}; font-size: {int(15 * s)}px; color: {C['ink']};
-    selection-background-color: #d6d6d6; selection-color: {C['ink']};
+    selection-background-color: #d9d9dd; selection-color: {C['ink']};
 }}
 QTextBrowser#Preview {{
     background: {C['card']}; border: none; padding: 18px 26px;
     font-family: {FONT_TEXT}; font-size: {int(15 * s)}px; color: {C['ink']};
-    selection-background-color: #d6d6d6;
+    selection-background-color: #d9d9dd;
 }}
 
-QToolButton {{
-    background: transparent; border: none; border-radius: 7px; padding: 5px 7px; color: {C['ink_soft']};
+/* 格式栏：一条浅浅的卡片 */
+#FormatBar {{
+    background: {C['card']}; border: 1px solid {C['line_soft']};
+    border-radius: 12px; margin: 6px 16px 2px 16px;
 }}
-QToolButton:hover {{ background: #f0f0f0; color: {C['ink']}; }}
-QToolButton:checked {{ background: #e4e4e4; color: {C['ink']}; }}
-QToolButton:pressed {{ background: {C['line']}; }}
+#FormatBar QToolButton {{ padding: 4px 6px; border-radius: 7px; }}
+
+/* 类型页内部的小卡片（账号 / 日子 / 链接） */
+#Card {{
+    background: #fbfbfc; border: 1px solid {C['card_border']};
+    border-radius: 14px;
+}}
+#Card QLabel {{ color: {C['muted']}; font-size: {int(12 * s)}px; background: transparent; border: none; }}
+#Card QLineEdit {{
+    background: transparent; border: none; border-radius: 8px; padding: 6px 4px;
+    font-size: {int(15 * s)}px;
+}}
+#Card QLineEdit:focus {{ background: {C['card']}; }}
+
+QToolButton {{
+    background: transparent; border: none; border-radius: 8px; padding: 5px 7px; color: {C['ink_soft']};
+}}
+QToolButton:hover {{ background: #f1f1f3; color: {C['ink']}; }}
+QToolButton:checked {{ background: #e6e6e9; color: {C['ink']}; }}
+QToolButton:pressed {{ background: #dcdce0; }}
 
 /* ---------- 通用按钮 ---------- */
 QPushButton {{
-    background: {C['card']}; border: 1px solid {C['line']}; border-radius: 8px;
+    background: {C['card']}; border: 1px solid {C['card_border_strong']}; border-radius: 9px;
     padding: 7px 14px; color: {C['ink']};
 }}
-QPushButton:hover {{ border-color: {C['ink']}; }}
+QPushButton:hover {{ border-color: {C['ink']}; background: {C['card']}; }}
+QPushButton:pressed {{ background: #f1f1f3; }}
 QPushButton:default {{ background: {C['ink']}; color: white; border: none; }}
 QPushButton:default:hover {{ background: #000000; }}
-QPushButton:disabled {{ color: {C['faint']}; border-color: {C['line_soft']}; }}
+QPushButton:disabled {{ color: {C['faint']}; border-color: {C['line']}; background: {C['paper_alt']}; }}
 
 /* ---------- 滚动条 ---------- */
-QScrollBar:vertical {{ background: transparent; width: 10px; margin: 2px; }}
-QScrollBar::handle:vertical {{ background: #d2d2d2; border-radius: 5px; min-height: 30px; }}
-QScrollBar::handle:vertical:hover {{ background: #b6b6b6; }}
+QScrollBar:vertical {{ background: transparent; width: 10px; margin: 3px 2px; }}
+QScrollBar::handle:vertical {{ background: #d8d8dc; border-radius: 4px; min-height: 32px; }}
+QScrollBar::handle:vertical:hover {{ background: #bdbdc4; }}
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
 QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{ background: transparent; }}
-QScrollBar:horizontal {{ background: transparent; height: 10px; margin: 2px; }}
-QScrollBar::handle:horizontal {{ background: #d2d2d2; border-radius: 5px; }}
+QScrollBar:horizontal {{ background: transparent; height: 10px; margin: 2px 3px; }}
+QScrollBar::handle:horizontal {{ background: #d8d8dc; border-radius: 4px; }}
 QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ width: 0; }}
 
 /* ---------- 菜单 ---------- */
 QMenu {{
-    background: {C['card']}; border: 1px solid {C['line']}; border-radius: 9px; padding: 5px;
+    background: {C['card']}; border: 1px solid {C['card_border']}; border-radius: 11px; padding: 6px;
 }}
-QMenu::item {{ padding: 6px 26px 6px 12px; border-radius: 6px; }}
-QMenu::item:selected {{ background: #efefef; color: {C['ink']}; }}
-QMenu::separator {{ height: 1px; background: {C['line_soft']}; margin: 4px 8px; }}
+QMenu::item {{ padding: 7px 28px 7px 12px; border-radius: 7px; }}
+QMenu::item:selected {{ background: #f1f1f3; color: {C['ink']}; }}
+QMenu::separator {{ height: 1px; background: {C['line']}; margin: 5px 8px; }}
 
 QToolTip {{
-    background: {C['ink']}; color: #fff; border: none; padding: 5px 8px; border-radius: 6px;
+    background: {C['ink']}; color: #fff; border: none; padding: 6px 9px; border-radius: 7px;
 }}
 
 /* ---------- 对话框 ---------- */
-QDialog {{ background: {C['paper']}; }}
+QDialog {{ background: {C['canvas']}; }}
 QDialog QLabel {{ color: {C['ink']}; }}
+#DialogBody {{ background: {C['card']}; }}
 QComboBox {{
-    background: {C['card']}; border: 1px solid {C['line']}; border-radius: 8px; padding: 6px 10px;
+    background: {C['card']}; border: 1px solid {C['card_border_strong']}; border-radius: 9px; padding: 6px 10px;
 }}
 QComboBox:focus {{ border-color: {C['ink']}; }}
 QComboBox QAbstractItemView {{
-    background: {C['card']}; border: 1px solid {C['line']}; selection-background-color: #efefef;
+    background: {C['card']}; border: 1px solid {C['card_border']}; selection-background-color: #f1f1f3;
     selection-color: {C['ink']}; outline: none;
 }}
 QSpinBox {{
-    background: {C['card']}; border: 1px solid {C['line']}; border-radius: 8px; padding: 5px 8px;
+    background: {C['card']}; border: 1px solid {C['card_border_strong']}; border-radius: 9px; padding: 5px 8px;
 }}
 QCheckBox {{ spacing: 8px; }}
 QSplitter::handle {{ background: {C['line_soft']}; }}

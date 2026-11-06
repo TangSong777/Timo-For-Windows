@@ -32,3 +32,5 @@ shot_*.py
 Data/
 *.spec
 build/payload.zip
+crop_*.png
+cmp_*.png

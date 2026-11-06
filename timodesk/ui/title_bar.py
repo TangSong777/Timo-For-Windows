@@ -93,8 +93,8 @@ class TitleBar(QWidget):
         self.setFixedHeight(self.HEIGHT)
         self.setStyleSheet(f"""
             QWidget#TitleBar {{
-                background: {C['card']};
-                border-bottom: 1px solid {C['line_soft']};
+                background: transparent;
+                border: none;
             }}
             QLabel#TitleBrand {{
                 color: {C['ink']};

@@ -12,7 +12,15 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from PyQt5.QtCore import QSize, Qt, QTimer, pyqtSignal
+from PyQt5.QtCore import (
+    QAbstractAnimation,
+    QEasingCurve,
+    QPropertyAnimation,
+    QSize,
+    Qt,
+    QTimer,
+    pyqtSignal,
+)
 from PyQt5.QtGui import QFont, QImage, QPixmap
 from PyQt5.QtWidgets import (
     QCheckBox,
@@ -20,6 +28,7 @@ from PyQt5.QtWidgets import (
     QDialog,
     QFileDialog,
     QFrame,
+    QGraphicsOpacityEffect,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -158,7 +167,9 @@ class NoteEditor(QWidget):
         self._dirty = False
         self._mode = "split"
         self.setObjectName("EditorPane")
+        self.setAttribute(Qt.WA_StyledBackground, True)
         self._build_ui()
+        self.top_bar.setVisible(False)
         self._preview_timer = QTimer(self)
         self._preview_timer.setSingleShot(True)
         self._preview_timer.setInterval(280)
@@ -172,6 +183,7 @@ class NoteEditor(QWidget):
 
         # ---- 顶栏 ----
         top = QWidget(objectName="EditorTopBar")
+        self.top_bar = top
         tl = QHBoxLayout(top)
         tl.setContentsMargins(22, 11, 16, 9)
         tl.setSpacing(6)
@@ -263,9 +275,9 @@ class NoteEditor(QWidget):
         pl.setContentsMargins(0, 0, 0, 0)
         pl.setSpacing(0)
 
-        self.format_bar = QWidget()
+        self.format_bar = QFrame(objectName="FormatBar")
         fb = QHBoxLayout(self.format_bar)
-        fb.setContentsMargins(18, 2, 18, 3)
+        fb.setContentsMargins(10, 4, 10, 4)
         fb.setSpacing(1)
         for text, tip, cb in [
             ("B", "粗体 Ctrl+B", lambda: self._wrap("**", "**")),
@@ -357,12 +369,7 @@ class NoteEditor(QWidget):
         al.setContentsMargins(22, 8, 26, 16)
         al.setSpacing(10)
 
-        card = QFrame()
-        card.setStyleSheet(
-            f"QFrame{{background:{C['card']};border:1px solid {C['line']};border-radius:14px;}}"
-            f"QLabel{{border:none;background:transparent;color:{C['muted']};font-size:12px;}}"
-            f"QLineEdit{{border:none;background:transparent;font-size:15px;padding:2px 0;}}"
-        )
+        card = QFrame(objectName="Card")
         cl = QVBoxLayout(card)
         cl.setContentsMargins(20, 16, 16, 16)
         cl.setSpacing(12)
@@ -426,12 +433,7 @@ class NoteEditor(QWidget):
         ll.setContentsMargins(22, 8, 26, 16)
         ll.setSpacing(10)
 
-        card = QFrame()
-        card.setStyleSheet(
-            f"QFrame{{background:{C['card']};border:1px solid {C['line']};border-radius:14px;}}"
-            f"QLabel{{border:none;background:transparent;color:{C['muted']};font-size:12px;}}"
-            f"QLineEdit{{border:none;background:transparent;font-size:15px;color:{C['green']};padding:2px 0;}}"
-        )
+        card = QFrame(objectName="Card")
         cl = QHBoxLayout(card)
         cl.setContentsMargins(18, 12, 14, 12)
         self.url_edit = QLineEdit()
@@ -458,13 +460,12 @@ class NoteEditor(QWidget):
         dl.setContentsMargins(22, 8, 26, 16)
         dl.setSpacing(10)
 
-        card = QFrame()
-        card.setStyleSheet(f"QFrame{{background:{C['card']};border:1px solid {C['line']};border-radius:14px;}}")
+        card = QFrame(objectName="Card")
         cl = QVBoxLayout(card)
         cl.setContentsMargins(24, 20, 24, 20)
         cl.setSpacing(6)
         self.date_big = QLabel("")
-        self.date_big.setStyleSheet(f"color:{C['green']};font-size:40px;font-weight:600;background:transparent;border:none;")
+        self.date_big.setStyleSheet(f"color:{C['green']};font-size:40px;font-weight:500;background:transparent;border:none;")
         cl.addWidget(self.date_big)
         self.date_sub = QLabel("")
         self.date_sub.setStyleSheet(f"color:{C['muted']};font-size:13px;background:transparent;border:none;")
@@ -520,14 +521,32 @@ class NoteEditor(QWidget):
     def set_library(self, lib: Library):
         self.lib = lib
 
+    def _fade_in(self, widget):
+        """切换类型页时轻轻淡入一下，别做成花哨的转场。"""
+        try:
+            eff = QGraphicsOpacityEffect(widget)
+            widget.setGraphicsEffect(eff)
+            anim = QPropertyAnimation(eff, b"opacity", self)
+            anim.setDuration(170)
+            anim.setStartValue(0.25)
+            anim.setEndValue(1.0)
+            anim.setEasingCurve(QEasingCurve.OutCubic)
+            anim.finished.connect(lambda: widget.setGraphicsEffect(None))
+            anim.start(QAbstractAnimation.DeleteWhenStopped)
+        except RuntimeError:
+            pass
+
     def set_note(self, note: Note | None, focus: bool = True):
         self.note = note
         self._loading = True
         if note is None:
             self.stack.setCurrentWidget(self.page_empty)
             self.title_wrap.setVisible(False)
+            self.top_bar.setVisible(False)
             self._loading = False
             return
+
+        self.top_bar.setVisible(True)
 
         self.badge.setText(TYPE_LABELS.get(note.type, "笔记"))
         self.title_edit.blockSignals(True)
@@ -544,7 +563,10 @@ class NoteEditor(QWidget):
             "link": self.page_link,
             "date": self.page_date,
         }.get(note.type, self.page_text)
+        changed = self.stack.currentWidget() is not page
         self.stack.setCurrentWidget(page)
+        if changed:
+            self._fade_in(page)
 
         if note.type in ("note", "article"):
             self.edit.blockSignals(True)

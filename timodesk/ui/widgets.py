@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from PyQt5.QtCore import QRect, QSize, Qt
+from PyQt5.QtCore import QPointF, QRect, QSize, Qt
 from PyQt5.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen
 from PyQt5.QtWidgets import QStyledItemDelegate, QStyle
 
@@ -67,7 +67,7 @@ class NoteCardDelegate(QStyledItemDelegate):
         self.lib = lib
 
     def sizeHint(self, option, index) -> QSize:
-        return QSize(280, 98)
+        return QSize(280, 100)
 
     def paint(self, painter: QPainter, option, index):
         note = self.lib.notes.get(index.data(Qt.UserRole))
@@ -75,15 +75,31 @@ class NoteCardDelegate(QStyledItemDelegate):
             return
         painter.save()
         painter.setRenderHint(QPainter.Antialiasing, True)
+        painter.fillRect(option.rect, QColor(C["card"]))
 
-        r = option.rect.adjusted(6, 3, -6, -3)
+        r = option.rect.adjusted(7, 4, -7, -7)
         selected = bool(option.state & QStyle.State_Selected)
         hovered = bool(option.state & QStyle.State_MouseOver)
 
-        bg = QColor("#ececec" if selected else (C["card_hover"] if hovered else C["card"]))
+        # 投影：一层很淡的晕，让卡片看起来浮在纸面上
+        painter.setPen(Qt.NoPen)
+        lift = 2 if (selected or hovered) else 1
+        painter.setBrush(QColor(0, 0, 0, 11 if (selected or hovered) else 7))
+        painter.drawRoundedRect(
+            r.adjusted(-lift, -lift + 1, lift, lift + 2),
+            12 + lift,
+            12 + lift,
+        )
+
+        if selected:
+            bg, border = QColor("#e9e9ec"), QColor("#c3c3ca")
+        elif hovered:
+            bg, border = QColor("#fbfbfc"), QColor("#dcdce1")
+        else:
+            bg, border = QColor(C["card"]), QColor(C["card_border"])
         painter.setBrush(bg)
-        painter.setPen(QPen(QColor("#d9d9d9" if selected else C["line_soft"]), 1))
-        painter.drawRoundedRect(r, 10, 10)
+        painter.setPen(QPen(border, 1))
+        painter.drawRoundedRect(r, 12, 12)
 
         if note.color:
             bar = QRect(r.left(), r.top() + 10, 3, r.height() - 20)
@@ -178,6 +194,7 @@ class TopicDelegate(QStyledItemDelegate):
             return
         painter.save()
         painter.setRenderHint(QPainter.Antialiasing, True)
+        painter.fillRect(option.rect, QColor(C["card"]))
         r = option.rect.adjusted(4, 1, -6, -1)
         selected = bool(option.state & QStyle.State_Selected)
         hovered = bool(option.state & QStyle.State_MouseOver)
@@ -196,7 +213,11 @@ class TopicDelegate(QStyledItemDelegate):
         painter.setPen(QColor(C["green_dark"] if selected else (C["faint"] if archived else C["ink"])))
         fm = QFontMetrics(name_font)
         name = fm.elidedText(topic.name, Qt.ElideRight, r.width() - 46)
-        painter.drawText(QRect(r.left() + 10, r.top(), r.width() - 46, r.height()), Qt.AlignLeft | Qt.AlignVCenter, name)
+        painter.drawText(
+            QRect(r.left() + 10, r.top(), r.width() - 46, r.height()),
+            Qt.AlignLeft | Qt.AlignVCenter | Qt.TextSingleLine,
+            name,
+        )
 
         if cnt:
             meta = QFont(option.font)

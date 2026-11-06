@@ -4,11 +4,23 @@ from __future__ import annotations
 from ctypes import wintypes
 from pathlib import Path
 
-from PyQt5.QtCore import QEvent, QPoint, QSize, Qt, QTimer
-from PyQt5.QtGui import QCursor, QKeySequence
+from PyQt5.QtCore import (
+    QAbstractAnimation,
+    QEasingCurve,
+    QEvent,
+    QPoint,
+    QPropertyAnimation,
+    QRectF,
+    QSize,
+    Qt,
+    QTimer,
+)
+from PyQt5.QtGui import QColor, QCursor, QKeySequence, QPainter, QPen
 from PyQt5.QtWidgets import (
     QApplication,
     QFileDialog,
+    QFrame,
+    QGraphicsOpacityEffect,
     QHBoxLayout,
     QInputDialog,
     QLabel,
@@ -31,6 +43,39 @@ from ..store import Library, Note
 from .dialogs import ProgressDialog, confirm, error, info
 from .editor import NoteEditor
 from .theme import C, NOTE_COLORS
+
+
+class _Body(QWidget):
+    """浅灰画布：在三块面板下方手绘一层柔和投影。
+
+    不用 QGraphicsDropShadowEffect —— 它会把子控件离屏渲染，
+    长列表滚动时既费性能，也会让裁剪区域错位。
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.panes: list[QWidget] = []
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if not self.panes:
+            return
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing, True)
+        p.setBrush(Qt.NoBrush)
+        for pane in self.panes:
+            if pane.isHidden():
+                continue
+            tl = pane.mapTo(self, QPoint(0, 0))
+            r = QRectF(
+                tl.x() + 0.5, tl.y() + 0.5, float(pane.width()) - 1.0, float(pane.height()) - 1.0
+            )
+            for i in range(1, 24):
+                alpha = int(90 * (1.0 - (i - 1) / 23.0) ** 2.4)
+                if alpha <= 0:
+                    continue
+                p.setPen(QPen(QColor(0, 0, 0, alpha), 1))
+                p.drawRoundedRect(r.adjusted(-i, -i + 5, i, i + 7), 15.5 + i, 15.5 + i)
 from .title_bar import (
     FrameEdge,
     HTBOTTOM,
@@ -87,17 +132,17 @@ class MainWindow(QMainWindow):
         self.title_bar = TitleBar(self)
         outer.addWidget(self.title_bar)
 
-        body = QWidget(objectName="Body")
+        body = _Body(objectName="Body")
         outer.addWidget(body, 1)
         h = QHBoxLayout(body)
-        h.setContentsMargins(0, 0, 0, 0)
-        h.setSpacing(0)
+        h.setContentsMargins(20, 14, 20, 18)
+        h.setSpacing(12)
 
         # ===== 侧栏 =====
-        sidebar = QWidget(objectName="Sidebar")
-        sidebar.setFixedWidth(220)
+        sidebar = QFrame(objectName="Sidebar")
+        sidebar.setFixedWidth(224)
         sb = QVBoxLayout(sidebar)
-        sb.setContentsMargins(12, 12, 10, 12)
+        sb.setContentsMargins(14, 16, 12, 14)
         sb.setSpacing(6)
 
         self.nav = QListWidget(objectName="NavList")
@@ -133,6 +178,7 @@ class MainWindow(QMainWindow):
         self.topic_list.currentRowChanged.connect(self._on_topic_changed)
         sb.addWidget(self.topic_list, 1)
 
+        sb.addSpacing(4)
         btn_topic = QPushButton("＋ 新建主题", objectName="NewTopicBtn")
         btn_topic.clicked.connect(self.new_topic)
         sb.addWidget(btn_topic)
@@ -160,11 +206,11 @@ class MainWindow(QMainWindow):
         h.addWidget(sidebar)
 
         # ===== 列表 =====
-        listpane = QWidget(objectName="ListPane")
-        listpane.setFixedWidth(330)
+        listpane = QFrame(objectName="ListPane")
+        listpane.setFixedWidth(334)
         lp = QVBoxLayout(listpane)
-        lp.setContentsMargins(16, 16, 12, 10)
-        lp.setSpacing(8)
+        lp.setContentsMargins(18, 18, 14, 14)
+        lp.setSpacing(9)
 
         head = QHBoxLayout()
         self.header_label = QLabel("全部笔记", objectName="ListHeader")
@@ -187,6 +233,7 @@ class MainWindow(QMainWindow):
         self.note_list = QListWidget(objectName="NoteList")
         self.note_list.setItemDelegate(NoteCardDelegate(self.lib, self))
         self.note_list.setFrameShape(QListWidget.NoFrame)
+        self.note_list.setMouseTracking(True)
         self.note_list.setVerticalScrollMode(QListWidget.ScrollPerPixel)
         self.note_list.setSpacing(0)
         self.note_list.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -203,12 +250,10 @@ class MainWindow(QMainWindow):
         self.editor.requestNewNote.connect(self.new_note)
         h.addWidget(self.editor, 1)
 
-        # 底部状态
-        self.statusBar().setStyleSheet(
-            f"QStatusBar{{background:{C['paper']};color:{C['faint']};border-top:1px solid {C['line']};}}"
-            f"QStatusBar::item{{border:none;}}"
-        )
-        self.statusBar().showMessage("")
+        # 三块面板浮在浅灰画布上，投影由 _Body.paintEvent 手绘
+        body.panes = [sidebar, listpane, self.editor]
+
+        self.statusBar().hide()
 
         # 无边框窗口的轮廓
         self._edge = FrameEdge(central)
@@ -251,7 +296,7 @@ class MainWindow(QMainWindow):
         self.topic_list.clearSelection()
         self.topic_list.setCurrentRow(-1)
         self.view = (kind, None)
-        self._reload_notes()
+        self._reload_notes(animate=True)
 
     def _on_topic_changed(self, row: int):
         if row < 0:
@@ -264,7 +309,7 @@ class MainWindow(QMainWindow):
         self.nav.setCurrentRow(-1)
         self.nav.blockSignals(False)
         self.view = ("topic", topic.id)
-        self._reload_notes()
+        self._reload_notes(animate=True)
 
     def _topic_menu(self, pos):
         it = self.topic_list.itemAt(pos)
@@ -326,7 +371,22 @@ class MainWindow(QMainWindow):
         state = "archived" if (t and t.state == "archived") else "active"
         return self.lib.topic_notes(tid, state=state)
 
-    def _reload_notes(self, select_id: str | None = None):
+    def _fade_in(self, widget: QWidget, ms: int = 180):
+        """短暂的透明度过渡，用于切换视图、页面时的柔和出现。"""
+        try:
+            eff = QGraphicsOpacityEffect(widget)
+            widget.setGraphicsEffect(eff)
+            anim = QPropertyAnimation(eff, b"opacity", self)
+            anim.setDuration(ms)
+            anim.setStartValue(0.2)
+            anim.setEndValue(1.0)
+            anim.setEasingCurve(QEasingCurve.OutCubic)
+            anim.finished.connect(lambda: widget.setGraphicsEffect(None))
+            anim.start(QAbstractAnimation.DeleteWhenStopped)
+        except RuntimeError:
+            pass
+
+    def _reload_notes(self, select_id: str | None = None, animate: bool = False):
         kind, tid = self.view
         title = "全部笔记"
         if kind == "archived":
@@ -347,7 +407,7 @@ class MainWindow(QMainWindow):
         for n in notes:
             it = QListWidgetItem()
             it.setData(Qt.UserRole, n.id)
-            it.setSizeHint(QSize(0, 96))
+            it.setSizeHint(QSize(0, 100))
             self.note_list.addItem(it)
         self.note_list.blockSignals(False)
         self.count_label.setText(str(len(notes)) if notes else "")
@@ -370,6 +430,9 @@ class MainWindow(QMainWindow):
             self.note_list.setCurrentRow(-1)
             self.note_list.blockSignals(False)
             self.editor.set_note(None)
+
+        if animate and notes:
+            self._fade_in(self.note_list, 170)
 
     def _on_note_changed(self, row: int):
         if row < 0:
@@ -655,6 +718,25 @@ class MainWindow(QMainWindow):
     def showEvent(self, e):  # noqa: N802
         super().showEvent(e)
         self._apply_mask()
+        if not getattr(self, "_entered", False):
+            self._entered = True
+            self._play_enter_animation()
+
+    def _play_enter_animation(self):
+        """第一次出现时整体淡化进入，别太慢。"""
+        central = self.centralWidget()
+        if central is None:
+            return
+        eff = QGraphicsOpacityEffect(central)
+        central.setGraphicsEffect(eff)
+        anim = QPropertyAnimation(eff, b"opacity", self)
+        anim.setDuration(240)
+        anim.setStartValue(0.0)
+        anim.setEndValue(1.0)
+        anim.setEasingCurve(QEasingCurve.OutCubic)
+        anim.finished.connect(lambda: central.setGraphicsEffect(None))
+        anim.start(QAbstractAnimation.DeleteWhenStopped)
+        self._enter_anim = anim
 
     def changeEvent(self, e):  # noqa: N802
         if e.type() == QEvent.WindowStateChange:
