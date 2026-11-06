@@ -82,7 +82,9 @@ Data/
 | 自动备份 | 每次启动最多每天备份一次正文与库结构到 `Data/backup/`，保留最近 7 份，数据菜单可手动备份或回滚 |
 | 应用锁 | 数据菜单里设置启动密码（PBKDF2 哈希存在 `Data/settings.json`），下次启动需输入 |
 
-常用快捷键：`Ctrl+N` 新建笔记、`Ctrl+Shift+N` 新建主题、`Ctrl+F` 搜索、`Ctrl+S` 保存、`Ctrl+E` 切换编辑/分屏/预览。
+常用快捷键：`Ctrl+N` 新建笔记、`Ctrl+Shift+N` 新建主题、`Ctrl+F` 搜索（光标在正文里时变成在本文中查找，`Esc` 关闭）、`Ctrl+S` 保存、`Ctrl+E` 切换编辑/分屏/预览。
+
+正文里还有：`Ctrl+B` 粗体、`Ctrl+I` 斜体、`Ctrl+K` 链接、`Ctrl+Shift+T` 待办、`Ctrl+Shift+1/2` 一/二级标题。
 
 ### 界面
 

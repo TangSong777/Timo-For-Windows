@@ -22,7 +22,15 @@ from PyQt5.QtCore import (
     QUrl,
     pyqtSignal,
 )
-from PyQt5.QtGui import QDesktopServices, QFont, QImage, QPixmap, QTextCursor
+from PyQt5.QtGui import (
+    QDesktopServices,
+    QFont,
+    QImage,
+    QKeySequence,
+    QPixmap,
+    QTextCursor,
+    QTextDocument,
+)
 from PyQt5.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -38,6 +46,7 @@ from PyQt5.QtWidgets import (
     QMenu,
     QPlainTextEdit,
     QPushButton,
+    QShortcut,
     QSpinBox,
     QSplitter,
     QStackedWidget,
@@ -322,6 +331,35 @@ class NoteEditor(QWidget):
         fb.addWidget(self.mode_btn)
         pl.addWidget(self.format_bar)
 
+        # 编辑器内查找条（Ctrl+F 在正文里时出现）
+        self.find_bar = QFrame(objectName="FindBar")
+        self.find_bar.setVisible(False)
+        fl = QHBoxLayout(self.find_bar)
+        fl.setContentsMargins(10, 4, 10, 4)
+        fl.setSpacing(6)
+        self.find_edit = QLineEdit()
+        self.find_edit.setPlaceholderText("在笔记中查找…")
+        self.find_edit.setFixedWidth(220)
+        self.find_edit.textChanged.connect(lambda _t: self._find_step(forward=True, restart=True))
+        self.find_edit.returnPressed.connect(lambda: self._find_step(forward=True))
+        fl.addWidget(self.find_edit)
+        self.find_count = QLabel("")
+        self.find_count.setObjectName("FindCount")
+        fl.addWidget(self.find_count)
+        for text, tip, fwd in (("↑", "上一个 Shift+Enter", False), ("↓", "下一个 Enter", True)):
+            b = QToolButton()
+            b.setText(text)
+            b.setToolTip(tip)
+            b.clicked.connect(lambda _c=False, f=fwd: self._find_step(forward=f))
+            fl.addWidget(b)
+        fl.addStretch(1)
+        b_close = QToolButton()
+        b_close.setText("✕")
+        b_close.setToolTip("关闭 Esc")
+        b_close.clicked.connect(self.hide_find)
+        fl.addWidget(b_close)
+        pl.addWidget(self.find_bar)
+
         self.splitter = QSplitter(Qt.Horizontal)
         self.splitter.setChildrenCollapsible(False)
         self.edit = MarkdownEdit("开始写点什么……\n\n支持简单 Markdown：**粗体**、*斜体*、# 标题、- 列表、> 引用、`代码`")
@@ -337,6 +375,63 @@ class NoteEditor(QWidget):
         pl.addWidget(self.splitter, 1)
         self.stack.addWidget(self.page_text)
         self.set_mode("split")
+        self._setup_shortcuts()
+
+    def _setup_shortcuts(self):
+        def add(seq, fn, ctx=Qt.WidgetShortcut):
+            sc = QShortcut(QKeySequence(seq), self.edit)
+            sc.setContext(ctx)
+            sc.activated.connect(fn)
+            return sc
+
+        add(QKeySequence.Find, self.show_find)
+        add("Ctrl+B", lambda: self._wrap("**", "**"))
+        add("Ctrl+I", lambda: self._wrap("*", "*"))
+        add("Ctrl+K", self._insert_link)
+        add("Ctrl+Shift+T", lambda: self._prefix("- [ ] "))
+        add("Ctrl+Shift+1", lambda: self._prefix("# "))
+        add("Ctrl+Shift+2", lambda: self._prefix("## "))
+        esc = QShortcut(QKeySequence(Qt.Key_Escape), self.find_edit)
+        esc.setContext(Qt.WidgetShortcut)
+        esc.activated.connect(self.hide_find)
+        up = QShortcut(QKeySequence("Shift+Return"), self.find_edit)
+        up.setContext(Qt.WidgetShortcut)
+        up.activated.connect(lambda: self._find_step(forward=False))
+
+    def show_find(self):
+        self.find_bar.setVisible(True)
+        text = self.edit.textCursor().selectedText()
+        if text and "\n" not in text:
+            self.find_edit.setText(text)
+        self.find_edit.setFocus()
+        self.find_edit.selectAll()
+        self._find_step(forward=True, restart=True)
+
+    def hide_find(self):
+        self.find_bar.setVisible(False)
+        self.edit.setFocus()
+
+    def _find_step(self, forward: bool = True, restart: bool = False):
+        needle = self.find_edit.text()
+        if not needle:
+            self.find_count.setText("")
+            return
+        total = self.edit.toPlainText().count(needle)
+        self.find_count.setText(f"{total} 处" if total else "无匹配")
+        if not total:
+            return
+        flags = QTextDocument.FindFlags()
+        if not forward:
+            flags |= QTextDocument.FindBackward
+        if restart:
+            cur = self.edit.textCursor()
+            cur.movePosition(QTextCursor.Start if forward else QTextCursor.End)
+            self.edit.setTextCursor(cur)
+        if not self.edit.find(needle, flags):
+            cur = self.edit.textCursor()
+            cur.movePosition(QTextCursor.Start if forward else QTextCursor.End)
+            self.edit.setTextCursor(cur)
+            self.edit.find(needle, flags)
 
     def _build_gallery_page(self):
         self.page_gallery = QWidget()

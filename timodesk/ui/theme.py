@@ -149,6 +149,16 @@ QLineEdit#Search {{
 }}
 QLineEdit#Search:focus {{ background: {C['card']}; border: 1px solid {C['ink']}; }}
 
+QFrame#FindBar {{ background: #fafafb; border: none; border-top: 1px solid {C['line']}; border-bottom: 1px solid {C['line']}; }}
+QFrame#FindBar QLineEdit {{
+    background: {C['card']}; border: 1px solid {C['card_border']}; border-radius: 8px;
+    padding: 4px 9px; selection-background-color: {C['ink']}; selection-color: #fff;
+}}
+QFrame#FindBar QLineEdit:focus {{ border: 1px solid {C['ink']}; }}
+QFrame#FindBar QToolButton {{ border: none; border-radius: 6px; padding: 3px 6px; color: {C['muted']}; }}
+QFrame#FindBar QToolButton:hover {{ background: #efeff1; color: {C['ink']}; }}
+#FindCount {{ color: {C['muted']}; font-size: {int(11 * s)}px; }}
+
 #ListEmpty {{ color: {C['faint']}; font-size: {int(12 * s)}px; line-height:1.6; }}
 QListWidget#NoteList {{ background: {C['card']}; border: none; padding: 2px; }}
 QListWidget#NoteList::item {{ border: none; margin: 0px; }}
