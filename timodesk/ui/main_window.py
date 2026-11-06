@@ -324,6 +324,7 @@ class MainWindow(QMainWindow):
         self.note_list.setItemDelegate(NoteCardDelegate(self.lib, self))
         self.note_list.setFrameShape(QListWidget.NoFrame)
         self.note_list.setMouseTracking(True)
+        self.note_list.deleteRequested.connect(self._on_notes_delete_key)
         self.note_list.setVerticalScrollMode(QListWidget.ScrollPerPixel)
         self.note_list.setUniformItemSizes(True)
         self.note_list.setLayoutMode(QListView.Batched)
@@ -625,6 +626,28 @@ class MainWindow(QMainWindow):
         else:
             self._reload_notes(select_id=self.editor.note.id if self.editor.note else None)
 
+    def _on_notes_delete_key(self, note_ids):
+        """列表上按 Delete：移到回收站（回收站里的笔记不在这里处理）。"""
+        ids = [
+            i
+            for i in note_ids
+            if i in self.lib.notes and self.lib.notes[i].state != "trash"
+        ]
+        if not ids:
+            self._toast("回收站里的笔记请用右键彻底删除")
+            return
+        from .dialogs import confirm
+
+        if not confirm(self, "移到回收站", f"把 {len(ids)} 条笔记移到回收站？"):
+            return
+        self._flush_save()
+        for nid in ids:
+            self.lib.delete_note(nid)
+        self.lib.save()
+        self.refresh_topics()
+        self._reload_notes(animate=True)
+        self._toast(f"已移到回收站（{len(ids)} 条）")
+
     def _on_notes_dropped(self, note_ids, topic_id: str):
         """把笔记（可多选）拖到左侧主题上：批量移动到该主题。"""
         ids = [i for i in note_ids if i in self.lib.notes]
@@ -864,12 +887,14 @@ class MainWindow(QMainWindow):
         self._do_import(path)
 
     # ---------------- 拖拽导入 ----------------
+    TEXT_EXTS = (".md", ".markdown", ".txt")
+
     @staticmethod
     def _droppable(path: str) -> bool:
         if not path:
             return False
         low = path.lower()
-        return low.endswith(".zip") or Path(path).is_dir()
+        return low.endswith(".zip") or low.endswith(MainWindow.TEXT_EXTS) or Path(path).is_dir()
 
     def _has_droppable(self, e) -> bool:
         md = e.mimeData()
@@ -896,9 +921,49 @@ class MainWindow(QMainWindow):
                 p = u.toLocalFile()
                 if self._droppable(p):
                     e.acceptProposedAction()
-                    self._do_import(p)
+                    if p.lower().endswith(MainWindow.TEXT_EXTS):
+                        self._import_text_file(p)
+                    else:
+                        self._do_import(p)
                     return
         e.ignore()
+
+    def _import_text_file(self, path: str):
+        """把 .md / .txt 拖进来 → 在当前主题新建一条笔记。"""
+        try:
+            raw = Path(path).read_bytes()
+        except OSError as exc:
+            self._toast(f"读不了这个文件：{exc}")
+            return
+        text = None
+        for enc in ("utf-8-sig", "utf-8", "gbk"):
+            try:
+                text = raw.decode(enc)
+                break
+            except UnicodeDecodeError:
+                continue
+        if text is None:
+            self._toast("这个文件的编码认不出来")
+            return
+        stem = Path(path).stem.strip() or "新笔记"
+        body = text.replace("\r\n", "\n").strip()
+        title = ""
+        lines = body.split("\n")
+        if lines and lines[0].startswith("# "):
+            title = lines[0][2:].strip()
+            body = "\n".join(lines[1:]).strip()
+        topic_id = self.view[1] if self.view[0] == "topic" and self.view[1] else None
+        if not topic_id:
+            topics = self.lib.sorted_topics()
+            topic_id = topics[0].id if topics else self.lib.add_topic("我的笔记").id
+        if title:
+            note = self.lib.add_note(topic_id, "article", content=body, title=title)
+        else:
+            note = self.lib.add_note(topic_id, "note", content=body, title=stem)
+        self.lib.save()
+        self.refresh_topics()
+        self._reload_notes(select_id=note.id, animate=True)
+        self._toast(f"已导入「{note.display_title(self.lib.content(note.id))}」")
 
     def _do_import(self, path: str):
         mode = "replace"

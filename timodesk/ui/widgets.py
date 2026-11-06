@@ -302,6 +302,15 @@ class NoteList(QListWidget):
     """支持把笔记拖到左侧主题上的列表。"""
 
     MIME = "application/x-timo-note"
+    deleteRequested = pyqtSignal(list)
+
+    def keyPressEvent(self, e):  # noqa: N802
+        if e.key() in (Qt.Key_Delete, Qt.Key_Backspace):
+            ids = [i.data(Qt.UserRole) for i in self.selectedItems() if i.data(Qt.UserRole)]
+            if ids:
+                self.deleteRequested.emit(ids)
+                return
+        super().keyPressEvent(e)
 
     def startDrag(self, actions):  # noqa: N802
         items = self.selectedItems() or ([self.currentItem()] if self.currentItem() else [])
