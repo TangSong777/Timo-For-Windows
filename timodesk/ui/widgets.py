@@ -3,9 +3,19 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
+from pathlib import Path
 
 from PyQt5.QtCore import QMimeData, QPoint, QRect, QRectF, QSize, Qt, pyqtSignal
-from PyQt5.QtGui import QColor, QDrag, QFont, QFontMetrics, QPainter, QPen
+from PyQt5.QtGui import (
+    QColor,
+    QDrag,
+    QFont,
+    QFontMetrics,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QPixmap,
+)
 from PyQt5.QtWidgets import QListWidget, QScrollBar, QStyledItemDelegate, QStyle
 
 from .theme import C
@@ -68,9 +78,43 @@ class NoteCardDelegate(QStyledItemDelegate):
         self.lib = lib
         self.show_topic = False
         self.term = ""  # 搜索词：命中处会在摘要里刷底色
+        self._covers: dict[str, QPixmap] = {}
 
     def sizeHint(self, option, index) -> QSize:
         return QSize(280, 100)
+
+    def _cover(self, note) -> QPixmap | None:
+        """图库笔记取第一张图当封面（按笔记 id 缓存，滚动时不重复解码）。"""
+        if note.type != "gallery" or not note.images:
+            return None
+        key = f"{note.id}:{note.images[0]}"
+        if key in self._covers:
+            return self._covers[key]
+        pm = QPixmap()
+        try:
+            path = self.lib.attachment_abspath(note.images[0])
+            if path and Path(path).exists():
+                pm = QPixmap(str(path))
+        except Exception:
+            pm = QPixmap()
+        if pm.isNull():
+            self._covers[key] = None
+            return None
+        side = 54 * 2  # 2 倍图，缩放到 54 时更清楚
+        pm = pm.scaled(side, side, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+        out = QPixmap(54, 54)
+        out.fill(QColor(C["input_bg"]))
+        p = QPainter(out)
+        p.setRenderHint(QPainter.Antialiasing, True)
+        path_ = QPainterPath()
+        path_.addRoundedRect(0, 0, 54, 54, 8, 8)
+        p.setClipPath(path_)
+        x = (54 - pm.width()) // 2
+        y = (54 - pm.height()) // 2
+        p.drawPixmap(x, y, pm)
+        p.end()
+        self._covers[key] = out
+        return out
 
     def paint(self, painter: QPainter, option, index):
         note = self.lib.notes.get(index.data(Qt.UserRole))
@@ -112,6 +156,17 @@ class NoteCardDelegate(QStyledItemDelegate):
 
         left = r.left() + (16 if note.color else 13)
         width = r.width() - (left - r.left()) - 13
+
+        # 图库笔记在右侧放一张封面，扫列表时能一眼认出来
+        cover = self._cover(note)
+        if cover is not None:
+            side = 54
+            crect = QRect(r.right() - 13 - side, r.top() + 11, side, side)
+            painter.save()
+            painter.setClipRect(crect)
+            painter.drawPixmap(crect, cover)
+            painter.restore()
+            width -= side + 10
 
         content = self.lib.content(note.id)
         title = note.display_title(content)
