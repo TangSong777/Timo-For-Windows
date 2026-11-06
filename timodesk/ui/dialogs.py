@@ -18,10 +18,10 @@ from .title_bar import FramelessDialog
 
 _BTN_QSS = f"""
 QPushButton#Primary {{
-    background: {C['ink']}; color: #ffffff; border: none;
+    background: {C['ink']}; color: {C['on_ink']}; border: none;
     border-radius: 8px; padding: 9px 22px; font-size: 13px;
 }}
-QPushButton#Primary:hover {{ background: #000000; }}
+QPushButton#Primary:hover {{ background: {C['btn_hover']}; }}
 QPushButton#Plain {{
     background: {C['card']}; border: 1px solid {C['line']};
     border-radius: 8px; padding: 9px 22px; color: {C['ink']}; font-size: 13px;
@@ -461,7 +461,7 @@ class AboutDialog(FramelessDialog):
             k.setFixedWidth(120)
             k.setStyleSheet(
                 f"color:{C['ink']};font-size:12px;font-family:'Consolas','Microsoft YaHei UI';"
-                f"background:#f5f5f7;border-radius:6px;padding:3px 8px;"
+                f"background:{C['input_bg']};border-radius:6px;padding:3px 8px;"
             )
             row.addWidget(k)
             d = QLabel(desc)

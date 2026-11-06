@@ -93,9 +93,9 @@ class NoteCardDelegate(QStyledItemDelegate):
         )
 
         if selected:
-            bg, border = QColor("#f4f4f6"), QColor("#dedee2")
+            bg, border = QColor(C["checked_bg"]), QColor(C["card_border_strong"])
         elif hovered:
-            bg, border = QColor("#fbfbfc"), QColor("#eaeaed")
+            bg, border = QColor(C["card_hover"]), QColor(C["card_border"])
         else:
             bg, border = QColor(C["card"]), QColor(C["card_border"])
         painter.setBrush(bg)
@@ -205,17 +205,17 @@ class TopicDelegate(QStyledItemDelegate):
             return
         painter.save()
         painter.setRenderHint(QPainter.Antialiasing, True)
-        painter.fillRect(option.rect, QColor("#fafafb"))
+        painter.fillRect(option.rect, QColor(C["sidebar"]))
         r = option.rect.adjusted(4, 2, -6, -2)
         selected = bool(option.state & QStyle.State_Selected)
         hovered = bool(option.state & QStyle.State_MouseOver)
         if selected:
-            painter.setPen(QPen(QColor("#e6e6e9"), 1))
-            painter.setBrush(QColor("#ffffff"))
+            painter.setPen(QPen(QColor(C["card_border_strong"]), 1))
+            painter.setBrush(QColor(C["card"]))
             painter.drawRoundedRect(r, 10, 10)
         elif hovered:
             painter.setPen(Qt.NoPen)
-            painter.setBrush(QColor("#f2f2f4"))
+            painter.setBrush(QColor(C["card_hover"]))
             painter.drawRoundedRect(r, 10, 10)
         if selected:
             painter.setPen(Qt.NoPen)

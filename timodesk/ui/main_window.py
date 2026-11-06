@@ -17,6 +17,7 @@ from PyQt5.QtCore import (
 )
 from PyQt5.QtGui import QColor, QCursor, QKeySequence, QPainter, QPen
 from PyQt5.QtWidgets import (
+    QActionGroup,
     QApplication,
     QFileDialog,
     QFrame,
@@ -48,7 +49,7 @@ from ..importer import import_export
 from ..store import NOTE_TYPES, TYPE_LABELS, Library, Note
 from .dialogs import ProgressDialog, confirm, error, info
 from .editor import NoteEditor
-from .theme import C, NOTE_COLORS, color_icon
+from .theme import C, NOTE_COLORS, app_qss, color_icon, resolve as resolve_theme, set_mode as set_theme_mode
 
 
 class _Body(QWidget):
@@ -235,13 +236,25 @@ class MainWindow(QMainWindow):
         menu.addSeparator()
         menu.addAction("清空回收站…", self.empty_trash)
         menu.addSeparator()
+        appearance = menu.addMenu("外观")
+        grp = QActionGroup(self)
+        grp.setExclusive(True)
+        current = self.settings.get("theme_mode", "light")
+        for key, label in (("light", "浅色"), ("dark", "深色"), ("system", "跟随系统")):
+            act = appearance.addAction(label)
+            act.setCheckable(True)
+            act.setChecked(current == key)
+            act.triggered.connect(lambda _=False, k=key: self.set_theme(k))
+            grp.addAction(act)
+        self._theme_group = grp
+        menu.addSeparator()
         menu.addAction("关于 Timo 桌面版", self.show_about)
         btn_data.setMenu(menu)
         btn_data.setPopupMode(QToolButton.InstantPopup)
         bottom.addWidget(btn_data)
         bottom.addStretch(1)
         self.total_label = QLabel("")
-        self.total_label.setStyleSheet(f"color:{C['faint']};font-size:11px;")
+        self.total_label.setObjectName("TotalLabel")
         bottom.addWidget(self.total_label)
         sb.addLayout(bottom)
         h.addWidget(sidebar)
@@ -1117,6 +1130,24 @@ class MainWindow(QMainWindow):
         for act in self.sort_menu.actions():
             act.setChecked(act.data() == self.sort_mode)
         self.btn_sort.setToolTip(f"排序：{labels.get(self.sort_mode, '最近更新')}")
+
+    def set_theme(self, mode: str) -> None:
+        """切换浅色 / 深色 / 跟随系统，立即生效并记住选择。"""
+        set_theme_mode(resolve_theme(mode))
+        self.settings.set("theme_mode", mode)
+        if self._theme_group:
+            for act in self._theme_group.actions():
+                act.setChecked(act.text() == {"light": "浅色", "dark": "深色", "system": "跟随系统"}[mode])
+        QApplication.instance().setStyleSheet(app_qss())
+        for w in self.findChildren(QWidget):
+            w.style().unpolish(w)
+            w.style().polish(w)
+        self.title_bar.refresh_style()
+        self.note_list.viewport().update()
+        self.topic_list.viewport().update()
+        self._edge.update()
+        self.editor.refresh_theme()
+        self.update()
 
     def show_about(self):
         from timodesk import __version__

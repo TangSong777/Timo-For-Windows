@@ -21,7 +21,7 @@ from .importer import import_export
 from .settings import Settings
 from .store import Library
 from .ui.main_window import MainWindow
-from .ui.theme import app_qss
+from .ui.theme import C, app_qss
 from .ui.title_bar import FramelessDialog
 from .ui.dialogs import ProgressDialog, error, info
 from .ui.tray import TrayIcon
@@ -103,20 +103,20 @@ class WelcomeDialog(FramelessDialog):
         self.setWindowTitle("欢迎使用 Timo 桌面版")
         self.setFixedSize(560, 462)
         self.setStyleSheet(
-            """
-            #DialogBody {{ background:#ffffff; }}
-            QLabel#Big {{ font-size:30px; color:#1f1f1f; font-weight:600; }}
-            QLabel#Sub {{ color:#737373; font-size:13px; }}
+            f"""
+            #DialogBody {{ background:{C['card']}; }}
+            QLabel#Big {{ font-size:30px; color:{C['ink']}; font-weight:600; }}
+            QLabel#Sub {{ color:{C['muted']}; font-size:13px; }}
             QPushButton#Primary {{
-                background:#1f1f1f; color:white; border:none; border-radius:10px;
+                background:{C['ink']}; color:{C['on_ink']}; border:none; border-radius:10px;
                 padding:12px 18px; font-size:14px; font-weight:600;
             }}
-            QPushButton#Primary:hover {{ background:#000000; }}
+            QPushButton#Primary:hover {{ background:{C['btn_hover']}; }}
             QPushButton#Plain {{
-                background:#ffffff; border:1px solid #e4e4e4; border-radius:10px;
-                padding:12px 18px; font-size:13px; color:#1f1f1f;
+                background:{C['card']}; border:1px solid {C['line']}; border-radius:10px;
+                padding:12px 18px; font-size:13px; color:{C['ink']};
             }}
-            QPushButton#Plain:hover {{ border-color:#1f1f1f; }}
+            QPushButton#Plain:hover {{ border-color:{C['ink']}; }}
             """
         )
         lay = QVBoxLayout(self.body)
@@ -133,7 +133,7 @@ class WelcomeDialog(FramelessDialog):
             "主题、笔记、图片和账号都会原样搬过来。"
         )
         desc.setWordWrap(True)
-        desc.setStyleSheet("color:#4a4a4a;font-size:13px;line-height:1.8;")
+        desc.setStyleSheet(f"color:{C['ink_soft']};font-size:13px;line-height:1.8;")
         lay.addWidget(desc)
         lay.addStretch(1)
 
@@ -154,7 +154,7 @@ class WelcomeDialog(FramelessDialog):
         quit_row.addStretch(1)
         b = QPushButton("退出")
         b.setFlat(True)
-        b.setStyleSheet("color:#a3a3a3;border:none;")
+        b.setStyleSheet(f"color:{C['faint']};border:none;")
         b.clicked.connect(self.reject)
         quit_row.addWidget(b)
         lay.addLayout(quit_row)
@@ -202,6 +202,13 @@ def _import_with_progress(lib: Library, path: str) -> bool:
     return True
 
 
+def resolve_theme_mode(mode: str) -> str:
+    """light / dark / system → 实际生效的 light|dark。"""
+    from .ui.theme import resolve
+
+    return resolve(mode)
+
+
 def run():
     QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
     QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
@@ -211,14 +218,17 @@ def run():
     app.setOrganizationName("TimoDesktop")
     app.setStyle("Fusion")
     app.setFont(QFont("Microsoft YaHei UI", 9))
+    root = data_dir()
+    _install_excepthook(root)
+    settings = Settings(root)
+    from .ui.theme import set_mode as _set_mode
+
+    _set_mode(resolve_theme_mode(settings.get("theme_mode", "light")))
     app.setStyleSheet(app_qss())
 
     ico = base_dir() / "assets" / "timo-icon.png"
     if ico.exists():
         app.setWindowIcon(QIcon(str(ico)))
-
-    root = data_dir()
-    _install_excepthook(root)
 
     args = list(sys.argv[1:])
     delete_targets: list[str] = []
@@ -230,7 +240,6 @@ def run():
     # 尽早开始，避免被欢迎对话框等模态窗口挡住
     _schedule_delete(delete_targets)
 
-    settings = Settings(root)
     lib = Library(root).load()
 
     cli = next((a for a in args if a and Path(a).exists()), "")

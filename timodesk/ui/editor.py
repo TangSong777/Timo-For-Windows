@@ -368,12 +368,12 @@ class NoteEditor(QWidget):
         el = QVBoxLayout(self.page_empty)
         el.setAlignment(Qt.AlignCenter)
         icon = QLabel("✎")
-        icon.setStyleSheet(f"font-size:54px;color:{C['line']};")
+        icon.setObjectName("EmptyIcon")
         icon.setAlignment(Qt.AlignCenter)
         el.addWidget(icon)
         hint = QLabel("选择一条笔记，或新建一条")
         hint.setAlignment(Qt.AlignCenter)
-        hint.setStyleSheet(f"color:{C['faint']};font-size:13px;")
+        hint.setObjectName("EmptyHint")
         el.addWidget(hint)
         b = QPushButton("新建笔记")
         b.setFixedWidth(132)
@@ -392,11 +392,11 @@ class NoteEditor(QWidget):
         bl = QHBoxLayout(bottom)
         bl.setContentsMargins(22, 3, 18, 8)
         self.word_label = QLabel("")
-        self.word_label.setStyleSheet(f"color:{C['faint']};font-size:11px;")
+        self.word_label.setObjectName("WordLabel")
         bl.addWidget(self.word_label)
         bl.addStretch(1)
         self.time_label = QLabel("")
-        self.time_label.setStyleSheet(f"color:{C['faint']};font-size:11px;")
+        self.time_label.setObjectName("TimeLabel")
         bl.addWidget(self.time_label)
         root.addWidget(bottom)
 
@@ -427,7 +427,7 @@ class NoteEditor(QWidget):
             if _i in _groups:
                 sep = QFrame()
                 sep.setFixedSize(1, 16)
-                sep.setStyleSheet(f"background:{C['line']};border:none;")
+                sep.setObjectName("FmtSep")
                 fb.addWidget(sep)
             b = QToolButton()
             b.setText(text)
@@ -556,7 +556,7 @@ class NoteEditor(QWidget):
 
         bar = QHBoxLayout()
         self.gallery_hint = QLabel("")
-        self.gallery_hint.setStyleSheet(f"color:{C['faint']};font-size:11px;")
+        self.gallery_hint.setObjectName("GalleryHint")
         bar.addWidget(self.gallery_hint)
         bar.addStretch(1)
         b = QPushButton("＋ 添加图片")
@@ -588,9 +588,7 @@ class NoteEditor(QWidget):
 
         self.gallery_desc = MarkdownEdit("给这组图片写点说明……")
         self.gallery_desc.setFixedHeight(96)
-        self.gallery_desc.setStyleSheet(
-            f"background:{C['card']};border:1px solid {C['line']};border-radius:10px;padding:10px 14px;"
-        )
+        self.gallery_desc.setObjectName("NoteDesc")
         self.gallery_desc.textChanged.connect(self._on_desc_changed)
         gl.addWidget(self.gallery_desc)
         self.stack.addWidget(self.page_gallery)
@@ -638,7 +636,7 @@ class NoteEditor(QWidget):
 
         sep = QFrame()
         sep.setFixedHeight(1)
-        sep.setStyleSheet(f"background:{C['line_soft']};border:none;")
+        sep.setObjectName("FmtSep")
         cl.addWidget(sep)
 
         rrow = QHBoxLayout()
@@ -654,7 +652,7 @@ class NoteEditor(QWidget):
 
         self.account_tip = QLabel("密码未加密保存在本机的 library.json 里，导出时也会写进 accounts.csv。")
         self.account_tip.setWordWrap(True)
-        self.account_tip.setStyleSheet(f"color:{C['faint']};font-size:11px;")
+        self.account_tip.setObjectName("AccountTip")
         al.addWidget(self.account_tip)
         al.addStretch(1)
         self.stack.addWidget(self.page_account)
@@ -679,9 +677,7 @@ class NoteEditor(QWidget):
         ll.addWidget(card)
 
         self.link_desc = MarkdownEdit("写下这条链接的说明……")
-        self.link_desc.setStyleSheet(
-            f"background:{C['card']};border:1px solid {C['line']};border-radius:12px;padding:12px 16px;"
-        )
+        self.link_desc.setObjectName("NoteDesc")
         self.link_desc.textChanged.connect(self._on_desc_changed)
         ll.addWidget(self.link_desc, 1)
         self.stack.addWidget(self.page_link)
@@ -697,10 +693,10 @@ class NoteEditor(QWidget):
         cl.setContentsMargins(24, 20, 24, 20)
         cl.setSpacing(6)
         self.date_big = QLabel("")
-        self.date_big.setStyleSheet(f"color:{C['green']};font-size:40px;font-weight:500;background:transparent;border:none;")
+        self.date_big.setObjectName("DateBig")
         cl.addWidget(self.date_big)
         self.date_sub = QLabel("")
-        self.date_sub.setStyleSheet(f"color:{C['muted']};font-size:13px;background:transparent;border:none;")
+        self.date_sub.setObjectName("DateSub")
         cl.addWidget(self.date_sub)
         cl.addSpacing(8)
 
@@ -742,9 +738,7 @@ class NoteEditor(QWidget):
         dl.addWidget(card)
 
         self.date_desc = MarkdownEdit("这个日子对你意味着什么……")
-        self.date_desc.setStyleSheet(
-            f"background:{C['card']};border:1px solid {C['line']};border-radius:12px;padding:12px 16px;"
-        )
+        self.date_desc.setObjectName("NoteDesc")
         self.date_desc.textChanged.connect(self._on_desc_changed)
         dl.addWidget(self.date_desc, 1)
         self.stack.addWidget(self.page_date)
@@ -1372,6 +1366,16 @@ class NoteEditor(QWidget):
             self.preview.show()
             self.mode_btn.setText("分屏")
             self.splitter.setSizes([10, 10])
+
+    def refresh_theme(self):
+        """切换浅色/深色后刷新依赖配色表 C 的部件与预览。"""
+        try:
+            self._refresh_preview()
+        except Exception:
+            pass
+        if hasattr(self, "wall"):
+            self.wall.viewport().update()
+        self.update()
 
     def mark_saved(self):
         self._dirty = False

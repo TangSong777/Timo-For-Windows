@@ -91,7 +91,34 @@ class TitleBar(QWidget):
 
         self.setObjectName("TitleBar")
         self.setFixedHeight(self.HEIGHT)
-        self.setStyleSheet(f"""
+        self.refresh_style()
+
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(16, 0, 10, 0)
+        lay.setSpacing(8)
+
+        icon = QLabel()
+        icon.setPixmap(app_icon().pixmap(QSize(18, 18)))
+        icon.setFixedSize(18, 18)
+        lay.addWidget(icon)
+
+        brand = QLabel("Timo", objectName="TitleBrand")
+        lay.addWidget(brand)
+        sub = QLabel("For Windows", objectName="TitleSub")
+        lay.addWidget(sub, alignment=Qt.AlignBottom)
+        lay.addStretch(1)
+
+        self.btn_min = self._win_button("─", "最小化", self.win.showMinimized)
+        self.btn_max = self._win_button("□", "最大化", self.win.toggle_maximized)
+        self.btn_close = self._win_button("✕", "关闭", self.win.close, "CloseBtn")
+        for b in (self.btn_min, self.btn_max, self.btn_close):
+            lay.addWidget(b)
+
+        self.sync_max_button()
+
+
+    def _qss(self) -> str:
+        return f"""
             QWidget#TitleBar {{
                 background: transparent;
                 border: none;
@@ -122,31 +149,11 @@ class TitleBar(QWidget):
                 border-radius: 6px;
                 font-size: 12px;
             }}
-            QToolButton#CloseBtn:hover {{ background: #2e2e2e; color: #ffffff; }}
-        """)
+            QToolButton#CloseBtn:hover {{ background: {C['close_hover']}; color: {C['on_ink']}; }}
+        """
 
-        lay = QHBoxLayout(self)
-        lay.setContentsMargins(16, 0, 10, 0)
-        lay.setSpacing(8)
-
-        icon = QLabel()
-        icon.setPixmap(app_icon().pixmap(QSize(18, 18)))
-        icon.setFixedSize(18, 18)
-        lay.addWidget(icon)
-
-        brand = QLabel("Timo", objectName="TitleBrand")
-        lay.addWidget(brand)
-        sub = QLabel("For Windows", objectName="TitleSub")
-        lay.addWidget(sub, alignment=Qt.AlignBottom)
-        lay.addStretch(1)
-
-        self.btn_min = self._win_button("─", "最小化", self.win.showMinimized)
-        self.btn_max = self._win_button("□", "最大化", self.win.toggle_maximized)
-        self.btn_close = self._win_button("✕", "关闭", self.win.close, "CloseBtn")
-        for b in (self.btn_min, self.btn_max, self.btn_close):
-            lay.addWidget(b)
-
-        self.sync_max_button()
+    def refresh_style(self) -> None:
+        self.setStyleSheet(self._qss())
 
     def _win_button(self, text, tip, slot, name="WinBtn") -> QToolButton:
         b = QToolButton(objectName=name)
@@ -170,6 +177,8 @@ class TitleBar(QWidget):
         self.btn_max.setToolTip("向下还原" if self.win.isMaximized() else "最大化")
 
     # ---------- 拖动 ----------
+
+
     def mousePressEvent(self, ev):
         if ev.button() == Qt.LeftButton:
             self._press_global = ev.globalPos()
@@ -217,7 +226,21 @@ class DialogTitleBar(QWidget):
         self.setObjectName("DialogTitleBar")
         self.setAttribute(Qt.WA_StyledBackground, True)
         self.setFixedHeight(self.HEIGHT)
-        self.setStyleSheet(f"""
+        self.refresh_style()
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(16, 0, 10, 0)
+        lay.setSpacing(6)
+        lay.addWidget(QLabel(text, objectName="DialogTitle"))
+        lay.addStretch(1)
+        self.btn_close = QToolButton(objectName="DialogClose")
+        self.btn_close.setText("✕")
+        self.btn_close.setFixedSize(30, 24)
+        self.btn_close.setCursor(Qt.ArrowCursor)
+        self.btn_close.clicked.connect(self.dlg.reject)
+        lay.addWidget(self.btn_close)
+
+    def _qss(self) -> str:
+        return f"""
             QWidget#DialogTitleBar {{
                 background: {C['card']};
                 border-bottom: 1px solid {C['line_soft']};
@@ -233,19 +256,11 @@ class DialogTitleBar(QWidget):
                 border: none; background: transparent; color: {C['muted']};
                 border-radius: 6px; font-size: 12px;
             }}
-            QToolButton#DialogClose:hover {{ background: #2e2e2e; color: #ffffff; }}
-        """)
-        lay = QHBoxLayout(self)
-        lay.setContentsMargins(16, 0, 10, 0)
-        lay.setSpacing(6)
-        lay.addWidget(QLabel(text, objectName="DialogTitle"))
-        lay.addStretch(1)
-        self.btn_close = QToolButton(objectName="DialogClose")
-        self.btn_close.setText("✕")
-        self.btn_close.setFixedSize(30, 24)
-        self.btn_close.setCursor(Qt.ArrowCursor)
-        self.btn_close.clicked.connect(self.dlg.reject)
-        lay.addWidget(self.btn_close)
+            QToolButton#DialogClose:hover {{ background: {C['close_hover']}; color: {C['on_ink']}; }}
+        """
+
+    def refresh_style(self) -> None:
+        self.setStyleSheet(self._qss())
 
     def mousePressEvent(self, ev):
         if ev.button() == Qt.LeftButton:
