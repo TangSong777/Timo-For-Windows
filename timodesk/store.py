@@ -38,6 +38,18 @@ STATES = ("active", "archived", "trash")
 STATE_LABELS = {"active": "笔记", "archived": "归档", "trash": "回收站"}
 
 
+def _replace_retry(tmp: Path, target: Path, attempts: int = 6) -> None:
+    """Windows 上杀毒/搜索索引会短暂占用目标文件，替换失败就退避重试。"""
+    for attempt in range(attempts):
+        try:
+            os.replace(tmp, target)
+            return
+        except PermissionError:
+            if attempt == attempts - 1:
+                raise
+            time.sleep(0.05 * (attempt + 1))
+
+
 def now_iso() -> str:
     """与 Timo 一致的 UTC ISO 时间（毫秒 + Z）。"""
     t = time.time()
@@ -200,6 +212,7 @@ class Library:
         self.notes: dict[str, Note] = {}
         self._content: dict[str, str] = {}
         self.load_error: str | None = None
+        self.bad_files: list[str] = []
         self._dirty = False
 
     # ---------- 路径 ----------
@@ -229,6 +242,7 @@ class Library:
         self.notes_dir.mkdir(parents=True, exist_ok=True)
         self.attachments_dir.mkdir(parents=True, exist_ok=True)
         self.load_error = None
+        self.bad_files = []
         if not self.json_path.exists():
             return self
         try:
@@ -247,7 +261,19 @@ class Library:
         self.notes = {n["id"]: Note(**n) for n in data.get("notes", [])}
         for n in self.notes.values():
             p = self.note_path(n.id)
-            self._content[n.id] = p.read_text(encoding="utf-8") if p.exists() else ""
+            if not p.exists():
+                self.bad_files.append(p.name)
+                self._content[n.id] = ""
+                continue
+            try:
+                self._content[n.id] = p.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                # 用户可能用别的编辑器把它存成 GBK：尽量读出来，别让整库打不开
+                self.bad_files.append(p.name)
+                self._content[n.id] = p.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                self.bad_files.append(p.name)
+                self._content[n.id] = ""
         return self
 
     def save(self) -> None:
@@ -266,15 +292,7 @@ class Library:
         }
         tmp = self.json_path.with_suffix(".json.tmp")
         tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
-        # Windows 上杀毒/索引服务偶尔会短暂占用目标文件，重试几次再放弃
-        for attempt in range(6):
-            try:
-                os.replace(tmp, self.json_path)
-                break
-            except PermissionError:
-                if attempt == 5:
-                    raise
-                time.sleep(0.05 * (attempt + 1))
+        _replace_retry(tmp, self.json_path)
 
     # ---------- 查询 ----------
     def content(self, note_id: str) -> str:
@@ -289,7 +307,7 @@ class Library:
         p.parent.mkdir(parents=True, exist_ok=True)
         tmp = p.with_suffix(".md.tmp")
         tmp.write_text(text, encoding="utf-8", newline="\n")
-        os.replace(tmp, p)
+        _replace_retry(tmp, p)
 
     def sorted_topics(self, state: str = "active") -> list[Topic]:
         ts = [t for t in self.topics.values() if t.state == state]

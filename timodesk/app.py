@@ -269,6 +269,13 @@ def run():
     lib = Library(root).load()
     if lib.load_error:
         recover_library(lib)
+    elif lib.bad_files:
+        info(
+            None,
+            "部分笔记读取异常",
+            f"有 {len(lib.bad_files)} 个正文文件打不开（可能被删除或用别的程序存成了其他编码），"
+            "已尽量读出能读的部分。需要的话可以在「数据与设置 → 备份与恢复」里挑一份备份恢复。",
+        )
 
     cli = next((a for a in args if a and Path(a).exists()), "")
     if cli:
