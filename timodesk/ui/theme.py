@@ -391,11 +391,11 @@ QSplitter::handle:horizontal {{ width: 1px; }}
 #TotalLabel {{ color: {C['faint']}; font-size: 11px; }}
 #EmptyIcon {{ font-size: 54px; color: {C['line']}; }}
 #EmptyHint {{ color: {C['faint']}; font-size: 13px; }}
-#WordLabel, #TimeLabel {{ color: {C['faint']}; font-size: 11px; }}
+#WordLabel, #TimeLabel {{ color: {C['muted']}; font-size: 11px; }}
 #FmtSep {{ background: {C['line']}; border: none; }}
-#GalleryHint, #AccountTip {{ color: {C['faint']}; font-size: 11px; }}
+#GalleryHint, #AccountTip {{ color: {C['muted']}; font-size: 11px; }}
 #NoteDesc {{
-    background: {C['card']}; border: 1px solid {C['line']}; border-radius: 12px; padding: 12px 16px;
+    background: {C['card']}; border: 1px solid {C['card_border_strong']}; border-radius: 12px; padding: 12px 16px;
 }}
 QLabel#DateBig {{ color: {C['ink']}; font-size: 40px; font-weight: 500; background: transparent; border: none; }}
 QLabel#DateSub {{ color: {C['muted']}; font-size: 13px; background: transparent; border: none; }}

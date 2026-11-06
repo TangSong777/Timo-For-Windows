@@ -1387,7 +1387,7 @@ def _thumb(pm: QPixmap, size: int):
 
     scaled = pm.scaled(size - 2, size - 2, Qt.KeepAspectRatio, Qt.SmoothTransformation)
     out = QPixmap(size, size)
-    out.fill(QColor("#f3f3f5"))
+    out.fill(QColor(C["input_bg"]))
     p = QPainter(out)
     p.setRenderHint(QPainter.Antialiasing)
     p.setRenderHint(QPainter.SmoothPixmapTransform)

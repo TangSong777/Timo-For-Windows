@@ -16,3 +16,9 @@
 - 标题栏抽出 `refresh_style()`；主窗口「⋯ → 外观」提供浅色 / 深色 / 跟随系统（`QActionGroup` 互斥），写 `settings.json` 的 `theme_mode`，启动时应用。
 - 欢迎页等对话框跟随主题；按钮去掉焦点虚线框。
 - 测试：core 13、types 32、ui 20、window 7、sort 9、view_restore 7、hl 8 全绿。
+
+## 2026-11-06 — 深色细节修正
+
+- 图库缩略图外框底色由硬编码 `#f3f3f5` 改为 `C['input_bg']`，深色下不再是白块。
+- `#NoteDesc` 边框改用 `card_border_strong`，深色下说明框边界可见。
+- `#WordLabel` / `#TimeLabel` / `#GalleryHint` / `#AccountTip` 由 faint 提为 muted，深色下底部字数与提示可读。
