@@ -42,7 +42,7 @@ from ..importer import import_export
 from ..store import Library, Note
 from .dialogs import ProgressDialog, confirm, error, info
 from .editor import NoteEditor
-from .theme import C, NOTE_COLORS
+from .theme import C, NOTE_COLORS, color_icon
 
 
 class _Body(QWidget):
@@ -91,7 +91,7 @@ from .title_bar import (
     TitleBar,
     rounded_mask,
 )
-from .widgets import NoteCardDelegate, TopicDelegate
+from .widgets import AutoFadeScrollBar, NoteCardDelegate, TopicDelegate
 
 
 class MainWindow(QMainWindow):
@@ -169,6 +169,7 @@ class MainWindow(QMainWindow):
         sb.addLayout(sec)
 
         self.topic_list = QListWidget(objectName="TopicList")
+        self.topic_list.setVerticalScrollBar(AutoFadeScrollBar(Qt.Vertical, self.topic_list))
         self.topic_list.setItemDelegate(TopicDelegate(self.lib, self))
         self.topic_list.setFrameShape(QListWidget.NoFrame)
         self.topic_list.setDragDropMode(QListWidget.InternalMove)
@@ -215,6 +216,7 @@ class MainWindow(QMainWindow):
         head = QHBoxLayout()
         self.header_label = QLabel("全部笔记", objectName="ListHeader")
         head.addWidget(self.header_label)
+        head.addSpacing(8)
         self.count_label = QLabel("", objectName="CountLabel")
         head.addWidget(self.count_label, alignment=Qt.AlignBottom)
         head.addStretch(1)
@@ -231,6 +233,7 @@ class MainWindow(QMainWindow):
         lp.addWidget(self.search)
 
         self.note_list = QListWidget(objectName="NoteList")
+        self.note_list.setVerticalScrollBar(AutoFadeScrollBar(Qt.Vertical, self.note_list))
         self.note_list.setItemDelegate(NoteCardDelegate(self.lib, self))
         self.note_list.setFrameShape(QListWidget.NoFrame)
         self.note_list.setMouseTracking(True)
@@ -457,7 +460,7 @@ class MainWindow(QMainWindow):
         a_pin = menu.addAction("取消置顶" if note.pinned_at else "置顶")
         color_menu = menu.addMenu("颜色标记")
         for name, col in NOTE_COLORS:
-            act = color_menu.addAction(name)
+            act = color_menu.addAction(color_icon(col), name)
             act.setData(col)
             if col == note.color:
                 act.setCheckable(True)
@@ -494,7 +497,7 @@ class MainWindow(QMainWindow):
             self.lib.move_note(nid, act.data())
         self.lib.save()
         self.refresh_topics()
-        self._reload_notes()
+        self._reload_notes(animate=act in (a_del, a_arch, a_restore, a_dup))
 
     # ---------------- 编辑保存 ----------------
     def new_note(self, note_type: str = "note"):
@@ -518,7 +521,7 @@ class MainWindow(QMainWindow):
                     self.topic_list.setCurrentRow(i)
                     self.topic_list.blockSignals(False)
                     break
-        self._reload_notes(select_id=note.id)
+        self._reload_notes(select_id=note.id, animate=True)
         self.editor._content_widget().setFocus()
 
     def _on_content_changed(self, note_id: str, content: str, title: str):
@@ -566,7 +569,7 @@ class MainWindow(QMainWindow):
         self._search_timer.start()
 
     def _apply_search(self):
-        self._reload_notes()
+        self._reload_notes(animate=True)
 
     # ---------------- 数据操作 ----------------
     def import_zip(self):

@@ -122,7 +122,7 @@ class TitleBar(QWidget):
                 border-radius: 6px;
                 font-size: 12px;
             }}
-            QToolButton#CloseBtn:hover {{ background: #e81123; color: #ffffff; }}
+            QToolButton#CloseBtn:hover {{ background: #2e2e2e; color: #ffffff; }}
         """)
 
         lay = QHBoxLayout(self)
@@ -232,7 +232,7 @@ class DialogTitleBar(QWidget):
                 border: none; background: transparent; color: {C['muted']};
                 border-radius: 6px; font-size: 12px;
             }}
-            QToolButton#DialogClose:hover {{ background: #e81123; color: #ffffff; }}
+            QToolButton#DialogClose:hover {{ background: #2e2e2e; color: #ffffff; }}
         """)
         lay = QHBoxLayout(self)
         lay.setContentsMargins(16, 0, 10, 0)

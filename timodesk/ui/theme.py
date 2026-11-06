@@ -3,7 +3,7 @@
 黑白灰为主：浅灰画布上浮着白色圆角卡片，接近黑文字、极淡分隔线。
 质感来自三层：画布底色 → 卡片（1px 边 + 柔和投影）→ 卡片内部控件。
 强调色就是黑色本身（主按钮黑底白字），不引入彩色主题。
-笔记的彩色标记（NOTE_COLORS）仍按 Timo 的 color 字段保留，属于内容不属于皮肤。
+笔记的颜色标记（NOTE_COLORS）按黑白灰阶保留，属于内容不属于皮肤。
 """
 from __future__ import annotations
 
@@ -30,27 +30,47 @@ C = {
     "green_soft": "#efeff1",
     "lime": "#d6d6d6",
     "lime_soft": "#ededef",
-    "danger": "#b4302a",
-    "danger_soft": "#f7e7e5",
-    "amber": "#7a5c22",
+    "danger": "#1d1d1f",
+    "danger_soft": "#f2f2f2",
+    "amber": "#7a7a7a",
     "shadow": "rgba(0, 0, 0, 0.06)",
 }
 
 # 笔记颜色标记（Timo 的 color 字段），默认无标记
 NOTE_COLORS = [
     ("无", None),
-    ("青柠", "#dfed95"),
-    ("浅绿", "#c8e6c9"),
-    ("湖蓝", "#b3e5fc"),
-    ("淡紫", "#d1c4e9"),
-    ("樱粉", "#f8bbd0"),
-    ("杏黄", "#ffe0b2"),
-    ("珊瑚", "#ffccbc"),
+    ("浅灰", "#e8e8e8"),
+    ("灰", "#d4d4d4"),
+    ("中灰", "#bfbfbf"),
+    ("深灰", "#a3a3a3"),
+    ("石墨", "#7a7a7a"),
+    ("炭灰", "#565656"),
+    ("墨黑", "#262626"),
 ]
 
 FONT_UI = '"Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", "PingFang SC", sans-serif'
 FONT_TEXT = '"Microsoft YaHei", "Segoe UI", "PingFang SC", sans-serif'
 FONT_MONO = '"Cascadia Code", "Consolas", "JetBrains Mono", monospace'
+
+
+def color_icon(col, size: int = 14):
+    """画一个小圆角色块，给「颜色标记」菜单用。col 为 None 时画空心圈（表示无）。"""
+    from PyQt5.QtCore import Qt
+    from PyQt5.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
+
+    pm = QPixmap(size, size)
+    pm.fill(Qt.transparent)
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.Antialiasing)
+    if col:
+        p.setBrush(QColor(col))
+        p.setPen(Qt.NoPen)
+    else:
+        p.setBrush(Qt.NoBrush)
+        p.setPen(QPen(QColor(C["card_border_strong"]), 1.2))
+    p.drawRoundedRect(1, 1, size - 2, size - 2, 4, 4)
+    p.end()
+    return QIcon(pm)
 
 
 def add_shadow(widget, blur: int = 26, y: int = 6, alpha: int = 24):
@@ -108,6 +128,7 @@ QListWidget#NavList::item {{
 }}
 QListWidget#NavList::item:selected {{
     background: #ececee; color: {C['ink']};
+    border-left: 2px solid {C['ink']};
 }}
 QListWidget#NavList::item:hover {{
     background: {C['card_hover']};
@@ -154,7 +175,8 @@ QPlainTextEdit#Editor {{
     selection-background-color: #d9d9dd; selection-color: {C['ink']};
 }}
 QTextBrowser#Preview {{
-    background: {C['card']}; border: none; padding: 18px 26px;
+    background: {C['paper_alt']}; border: none; border-left: 1px solid {C['line']};
+    padding: 18px 26px;
     font-family: {FONT_TEXT}; font-size: {int(15 * s)}px; color: {C['ink']};
     selection-background-color: #d9d9dd;
 }}

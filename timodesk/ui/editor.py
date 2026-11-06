@@ -48,7 +48,7 @@ from PyQt5.QtWidgets import (
 
 from ..render import render
 from ..store import TYPE_LABELS, Library, Note
-from .theme import C, NOTE_COLORS
+from .theme import C, NOTE_COLORS, color_icon
 from .widgets import human_time
 
 
@@ -202,7 +202,7 @@ class NoteEditor(QWidget):
         self.btn_color.setPopupMode(QToolButton.InstantPopup)
         cmenu = QMenu(self)
         for name, col in NOTE_COLORS:
-            a = cmenu.addAction(name)
+            a = cmenu.addAction(color_icon(col), name)
             a.setData(col)
         cmenu.triggered.connect(lambda a: self._set_color(a.data()))
         self.btn_color.setMenu(cmenu)
@@ -278,8 +278,9 @@ class NoteEditor(QWidget):
         self.format_bar = QFrame(objectName="FormatBar")
         fb = QHBoxLayout(self.format_bar)
         fb.setContentsMargins(10, 4, 10, 4)
-        fb.setSpacing(1)
-        for text, tip, cb in [
+        fb.setSpacing(2)
+        _groups = (3, 5, 8)
+        for _i, (text, tip, cb) in enumerate([
             ("B", "粗体 Ctrl+B", lambda: self._wrap("**", "**")),
             ("I", "斜体 Ctrl+I", lambda: self._wrap("*", "*")),
             ("S", "删除线", lambda: self._wrap("~~", "~~")),
@@ -291,7 +292,12 @@ class NoteEditor(QWidget):
             ("</>", "代码块", lambda: self._wrap("\n```\n", "\n```\n")),
             ("🔗", "链接 Ctrl+K", self._insert_link),
             ("🖼", "插入图片", self._pick_images),
-        ]:
+        ]):
+            if _i in _groups:
+                sep = QFrame()
+                sep.setFixedSize(1, 16)
+                sep.setStyleSheet(f"background:{C['line']};border:none;")
+                fb.addWidget(sep)
             b = QToolButton()
             b.setText(text)
             b.setToolTip(tip)

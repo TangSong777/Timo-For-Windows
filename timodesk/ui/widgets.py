@@ -3,9 +3,9 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from PyQt5.QtCore import QPointF, QRect, QSize, Qt
+from PyQt5.QtCore import QPointF, QRect, QRectF, QSize, Qt
 from PyQt5.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen
-from PyQt5.QtWidgets import QStyledItemDelegate, QStyle
+from PyQt5.QtWidgets import QScrollBar, QStyledItemDelegate, QStyle
 
 from .theme import C
 
@@ -202,6 +202,10 @@ class TopicDelegate(QStyledItemDelegate):
             painter.setPen(Qt.NoPen)
             painter.setBrush(QColor(C["green_soft"] if selected else C["card"]))
             painter.drawRoundedRect(r, 8, 8)
+        if selected:
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor(C["ink"]))
+            painter.drawRoundedRect(QRectF(r.left() + 2, r.center().y() - 8, 2.5, 16), 1.2, 1.2)
 
         cnt = self.lib.note_counts().get(topic.id, 0)
 
@@ -226,3 +230,47 @@ class TopicDelegate(QStyledItemDelegate):
             painter.setPen(QColor(C["green"] if selected else C["faint"]))
             painter.drawText(QRect(r.right() - 40, r.top(), 34, r.height()), Qt.AlignRight | Qt.AlignVCenter, str(cnt))
         painter.restore()
+
+
+class AutoFadeScrollBar(QScrollBar):
+    """静止时变淡、滚动或悬停时恢复的滚动条，让列表看起来更干净。"""
+
+    IDLE_OPACITY = 0.45
+
+    def __init__(self, orientation, parent=None):
+        super().__init__(orientation, parent)
+        from PyQt5.QtCore import QEasingCurve, QPropertyAnimation, QTimer
+        from PyQt5.QtWidgets import QGraphicsOpacityEffect
+
+        self._fx = QGraphicsOpacityEffect(self)
+        self._fx.setOpacity(1.0)
+        self.setGraphicsEffect(self._fx)
+        self._anim = QPropertyAnimation(self._fx, b"opacity", self)
+        self._anim.setDuration(240)
+        self._anim.setEasingCurve(QEasingCurve.OutCubic)
+        self._timer = QTimer(self)
+        self._timer.setSingleShot(True)
+        self._timer.setInterval(1400)
+        self._timer.timeout.connect(lambda: self._fade_to(self.IDLE_OPACITY))
+        self.valueChanged.connect(self._kick)
+        self.sliderPressed.connect(self._kick)
+        self._timer.start()
+
+    def _kick(self, *args):
+        self._fade_to(1.0)
+        self._timer.start()
+
+    def _fade_to(self, target: float):
+        self._anim.stop()
+        self._anim.setStartValue(self._fx.opacity())
+        self._anim.setEndValue(target)
+        self._anim.start()
+
+    def enterEvent(self, event):
+        self._timer.stop()
+        self._fade_to(1.0)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self._timer.start()
+        super().leaveEvent(event)
