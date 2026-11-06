@@ -156,6 +156,8 @@ class NoteCardDelegate(QStyledItemDelegate):
         painter.setFont(f_meta)
         fm_meta = QFontMetrics(f_meta)
         meta = f"{_TYPE_MARK.get(note.type, '')} · {human_time(note.updated_at or note.created_at)}"
+        if getattr(note, "remind_at", None):
+            meta = "⏰ " + human_time(note.remind_at) + " · " + meta
         if self.show_topic:
             topic = self.lib.topics.get(note.topic_id)
             if topic:

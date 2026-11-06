@@ -46,6 +46,28 @@ def now_iso() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(t)) + f".{int(t * 1000) % 1000:03d}Z"
 
 
+def to_iso(dt) -> str:
+    """本地 datetime → Timo 风格 UTC ISO（毫秒 + Z）。"""
+    from datetime import datetime, timezone
+
+    if dt.tzinfo is None:
+        dt = dt.astimezone()
+    u = dt.astimezone(timezone.utc)
+    return u.strftime("%Y-%m-%dT%H:%M:%S") + f".{u.microsecond // 1000:03d}Z"
+
+
+def from_iso(s: str | None):
+    """ISO 时间 → 本地 datetime（无值返回 None）。"""
+    from datetime import datetime
+
+    if not s:
+        return None
+    try:
+        return datetime.fromisoformat(s.replace("Z", "+00:00")).astimezone()
+    except Exception:
+        return None
+
+
 def parse_iso(s: str | None) -> float:
     """把 ISO 时间转成时间戳，用于排序；坏值返回 0。"""
     if not s:
@@ -100,6 +122,8 @@ class Note:
     date: dict | None = None
     tags: list[str] = field(default_factory=list)
     order: float = 0.0
+    # 本地提醒（Timo 导出包不含此字段，导出时会丢失）
+    remind_at: str | None = None
 
     def to_json(self) -> dict:
         return asdict(self)
@@ -378,6 +402,34 @@ class Library:
             return
         n.pinned_at = None if n.pinned_at else now_iso()
         self.save()
+
+    def set_reminder(self, note_id: str, when_iso: str | None) -> None:
+        """设置/清除笔记提醒。when_iso 为 None 表示清除。"""
+        n = self.notes.get(note_id)
+        if not n:
+            return
+        n.remind_at = when_iso
+        self.save()
+
+    def due_reminders(self, now: float | None = None) -> list[Note]:
+        """取出已到时间、还没提醒过的笔记，并把 remind_at 清空（只提醒一次）。"""
+        now = time.time() if now is None else now
+        out = []
+        for n in self.notes.values():
+            if n.state != "active" or not n.remind_at:
+                continue
+            if parse_iso(n.remind_at) <= now:
+                out.append(n)
+                n.remind_at = None
+        if out:
+            self.save()
+        return out
+
+    def upcoming_reminders(self, limit: int = 200) -> list[Note]:
+        now = time.time()
+        items = [n for n in self.notes.values() if n.state == "active" and n.remind_at and parse_iso(n.remind_at) > now]
+        items.sort(key=lambda n: parse_iso(n.remind_at))
+        return items[:limit]
 
     def toggle_color(self, note_id: str, color: str | None) -> None:
         n = self.notes.get(note_id)

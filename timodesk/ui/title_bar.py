@@ -215,6 +215,7 @@ class DialogTitleBar(QWidget):
         self.dlg = dialog
         self._press: QPoint | None = None
         self.setObjectName("DialogTitleBar")
+        self.setAttribute(Qt.WA_StyledBackground, True)
         self.setFixedHeight(self.HEIGHT)
         self.setStyleSheet(f"""
             QWidget#DialogTitleBar {{

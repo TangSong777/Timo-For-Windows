@@ -209,6 +209,11 @@ class NoteEditor(QWidget):
         cmenu.triggered.connect(lambda a: self._set_color(a.data()))
         self.btn_color.setMenu(cmenu)
         tl.addWidget(self.btn_color)
+        self.btn_remind = QToolButton()
+        self.btn_remind.setText("提醒")
+        self.btn_remind.setToolTip("设置提醒")
+        self.btn_remind.clicked.connect(self._on_remind)
+        tl.addWidget(self.btn_remind)
         self.btn_more = QToolButton()
         self.btn_more.setText("⋯")
         more = QMenu(self)
@@ -563,6 +568,7 @@ class NoteEditor(QWidget):
             return
 
         self.top_bar.setVisible(True)
+        self._sync_remind()
 
         self.badge.setText(TYPE_LABELS.get(note.type, "笔记"))
         self.title_edit.blockSignals(True)
@@ -945,6 +951,32 @@ class NoteEditor(QWidget):
         self.note = None
         self.stack.setCurrentWidget(self.page_empty)
         self.title_wrap.setVisible(False)
+        self.metaChanged.emit()
+
+    def _sync_remind(self):
+        n = self.note
+        if n and n.remind_at:
+            self.btn_remind.setText("⏰")
+            self.btn_remind.setToolTip("提醒：" + human_time(n.remind_at) + "（点击修改）")
+        else:
+            self.btn_remind.setText("提醒")
+            self.btn_remind.setToolTip("设置提醒")
+
+    def _on_remind(self):
+        if not self.note:
+            return
+        from .dialogs import ReminderDialog
+        from ..store import from_iso, to_iso
+
+        cur = from_iso(self.note.remind_at)
+        d = ReminderDialog(self, cur, has_reminder=bool(self.note.remind_at))
+        if not d.exec_():
+            return
+        if d.cleared:
+            self.lib.set_reminder(self.note.id, None)
+        elif d.result_when:
+            self.lib.set_reminder(self.note.id, to_iso(d.result_when))
+        self._sync_remind()
         self.metaChanged.emit()
 
     def _duplicate(self):

@@ -114,6 +114,11 @@ class MainWindow(QMainWindow):
         self._save_timer.setSingleShot(True)
         self._save_timer.setInterval(700)
         self._save_timer.timeout.connect(self._flush_save)
+        self._remind_timer = QTimer(self)
+        self._remind_timer.setInterval(30_000)
+        self._remind_timer.timeout.connect(self._check_reminders)
+        self._remind_timer.start()
+        QTimer.singleShot(1500, self._check_reminders)
         self._search_timer = QTimer(self)
         self._search_timer.setSingleShot(True)
         self._search_timer.setInterval(220)
@@ -496,6 +501,22 @@ class MainWindow(QMainWindow):
 
         if animate and notes:
             self._fade_in(self.note_list, 170)
+
+    def _check_reminders(self):
+        """把到点的提醒弹出来（每条只提醒一次）。"""
+        due = self.lib.due_reminders()
+        if not due:
+            return
+        names = "、".join(n.display_title(self.lib.content(n.id)) for n in due[:3])
+        if len(due) > 3:
+            names += " 等"
+        text = f"{len(due)} 条笔记到时间了：{names}"
+        if self.tray is not None:
+            self.tray.showMessage("Timo 提醒", text, QSystemTrayIcon.Information, 8000)
+        if self.isVisible():
+            self._reload_notes()
+        else:
+            self._reload_notes(select_id=self.editor.note.id if self.editor.note else None)
 
     def _on_note_dropped(self, note_id: str, topic_id: str):
         """把笔记拖到左侧主题上：移动到该主题。"""

@@ -200,7 +200,16 @@ QTextBrowser#Preview {{
     background: {C['card']}; border: 1px solid {C['line_soft']};
     border-radius: 12px; margin: 6px 16px 2px 16px;
 }}
-#FormatBar QToolButton {{ padding: 4px 6px; border-radius: 7px; }}
+#FormatBar QDateEdit, QTimeEdit {{
+    background: {C['card']}; border: 1px solid {C['line']};
+    border-radius: 8px; padding: 6px 8px; min-height: 18px;
+    selection-background-color: {C['ink']}; selection-color: #ffffff;
+}}
+QDateEdit:focus, QTimeEdit:focus {{ border-color: {C['ink']}; }}
+QDateEdit::drop-down {{ width: 22px; border: none; }}
+QTimeEdit::up-button, QTimeEdit::down-button {{ width: 16px; border: none; }}
+
+QToolButton {{ padding: 4px 6px; border-radius: 7px; }}
 
 /* 类型页内部的小卡片（账号 / 日子 / 链接） */
 #Card {{

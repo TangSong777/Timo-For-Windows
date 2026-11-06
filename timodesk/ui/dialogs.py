@@ -137,3 +137,98 @@ def confirm(parent, title: str, text: str, ok_text="继续", cancel_text="取消
 
 def error(parent, title: str, text: str) -> None:
     MessageDialog(parent, title, text, "好").exec_()
+
+
+class ReminderDialog(FramelessDialog):
+    """设置提醒时间：快捷按钮 + 日期 + 时间。"""
+
+    def __init__(self, parent, when: "datetime | None" = None, has_reminder: bool = False):
+        from datetime import datetime, timedelta
+
+        super().__init__(parent, "设置提醒")
+        self.setStyleSheet(_BTN_QSS)
+        from PyQt5.QtCore import QDate, QTime
+        from PyQt5.QtWidgets import QDateEdit, QHBoxLayout, QLabel, QPushButton, QTimeEdit
+
+        base = when or (datetime.now() + timedelta(hours=1))
+        self.cleared = False
+        self.result_when: datetime | None = None
+
+        lay = QVBoxLayout(self.body)
+        lay.setContentsMargins(28, 22, 28, 22)
+        lay.setSpacing(14)
+
+        tip = QLabel("到时间后会从右下角弹出提醒。")
+        tip.setStyleSheet(f"color:{C['muted']};font-size:12px;")
+        lay.addWidget(tip)
+
+        quick = QHBoxLayout()
+        quick.setSpacing(8)
+        now = datetime.now()
+        for label, target in (
+            ("一小时后", now + timedelta(hours=1)),
+            ("今天 20:00", now.replace(hour=20, minute=0, second=0, microsecond=0)),
+            ("明天 9:00", (now + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)),
+        ):
+            b = QPushButton(label)
+            b.setObjectName("Plain")
+            b.clicked.connect(lambda _=False, t=target: self._set(t))
+            quick.addWidget(b)
+        quick.addStretch(1)
+        lay.addLayout(quick)
+
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        self.date = QDateEdit()
+        self.date.setCalendarPopup(True)
+        self.date.setDisplayFormat("yyyy-MM-dd")
+        self.date.setDate(QDate(base.year, base.month, base.day))
+        self.time = QTimeEdit()
+        self.time.setDisplayFormat("HH:mm")
+        self.time.setTime(QTime(base.hour, base.minute))
+        row.addWidget(self.date, 2)
+        row.addWidget(self.time, 1)
+        row.addStretch(1)
+        lay.addLayout(row)
+
+        btns = QHBoxLayout()
+        btns.setSpacing(8)
+        if has_reminder:
+            b_clear = QPushButton("删除提醒")
+            b_clear.setObjectName("Link")
+            b_clear.clicked.connect(self._clear)
+            btns.addWidget(b_clear)
+        btns.addStretch(1)
+        b_cancel = QPushButton("取消")
+        b_cancel.setObjectName("Plain")
+        b_cancel.clicked.connect(self.reject)
+        b_ok = QPushButton("确定")
+        b_ok.setObjectName("Primary")
+        b_ok.clicked.connect(self._accept)
+        btns.addWidget(b_cancel)
+        btns.addWidget(b_ok)
+        lay.addLayout(btns)
+        lay.addStretch(1)
+
+        self.setMinimumWidth(420)
+        self.adjustSize()
+        self.add_edge()
+
+    def _set(self, dt):
+        from PyQt5.QtCore import QDate, QTime
+
+        self.date.setDate(QDate(dt.year, dt.month, dt.day))
+        self.time.setTime(QTime(dt.hour, dt.minute))
+
+    def _accept(self):
+        from datetime import datetime
+
+        d = self.date.date()
+        t = self.time.time()
+        self.result_when = datetime(d.year(), d.month(), d.day(), t.hour(), t.minute())
+        self.accept()
+
+    def _clear(self):
+        self.cleared = True
+        self.result_when = None
+        self.accept()
