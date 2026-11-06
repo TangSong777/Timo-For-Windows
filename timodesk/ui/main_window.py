@@ -1404,6 +1404,26 @@ class MainWindow(QMainWindow):
                 self.restoreGeometry(QByteArray.fromBase64(str(geo).encode()))
         except Exception:
             pass
+        # 换过显示器 / 拔掉外接屏后，上次的位置可能落在屏幕外，捡回来
+        if not self._on_screen():
+            self.resize(1280, 830)
+            self._center_on_screen()
+
+    def _on_screen(self) -> bool:
+        rect = self.frameGeometry()
+        for scr in QApplication.screens():
+            avail = scr.availableGeometry()
+            inter = avail.intersected(rect)
+            if inter.width() >= 160 and inter.height() >= 120:
+                return True
+        return False
+
+    def _center_on_screen(self):
+        scr = QApplication.primaryScreen()
+        if scr is None:
+            return
+        avail = scr.availableGeometry()
+        self.move(avail.center() - self.rect().center())
 
     def _save_geometry(self):
         try:
