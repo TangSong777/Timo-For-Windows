@@ -112,6 +112,7 @@ class MainWindow(QMainWindow):
         self._quitting = False
         self._tray_hinted = False
         self._build_ui()
+        self._restore_geometry()
         self._build_shortcuts()
         self._save_timer = QTimer(self)
         self._save_timer.setSingleShot(True)
@@ -907,7 +908,24 @@ class MainWindow(QMainWindow):
             "<p>笔记以 Markdown 文件保存，随时可以导出为 Timo 兼容的 ZIP。</p>",
         )
 
+    def _restore_geometry(self):
+        try:
+            geo = self.settings.get("window_geometry")
+            if geo:
+                from PyQt5.QtCore import QByteArray
+
+                self.restoreGeometry(QByteArray.fromBase64(str(geo).encode()))
+        except Exception:
+            pass
+
+    def _save_geometry(self):
+        try:
+            self.settings.set("window_geometry", bytes(self.saveGeometry().toBase64()).decode())
+        except Exception:
+            pass
+
     def closeEvent(self, e):  # noqa: N802
+        self._save_geometry()
         self.save_now()
         self.lib.save()
         # 有托盘时，关闭 = 收进托盘；从托盘菜单退出才算真退出
@@ -953,6 +971,8 @@ class MainWindow(QMainWindow):
     def showEvent(self, e):  # noqa: N802
         super().showEvent(e)
         self._apply_mask()
+        if hasattr(self, "title_bar"):
+            self.title_bar.sync_max_button()
         if not getattr(self, "_entered", False):
             self._entered = True
             self._play_enter_animation()

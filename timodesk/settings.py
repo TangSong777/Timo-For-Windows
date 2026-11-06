@@ -33,6 +33,19 @@ class Settings:
         tmp.write_text(json.dumps(self.data, ensure_ascii=False, indent=2), encoding="utf-8")
         os.replace(tmp, self.path)
 
+    # ---------------- 通用 ----------------
+    def get(self, key: str, default=None):
+        return self.data.get(key, default)
+
+    def set(self, key: str, value) -> None:
+        self.data[key] = value
+        self.save()
+
+    def drop(self, key: str) -> None:
+        if key in self.data:
+            self.data.pop(key, None)
+            self.save()
+
     # ---------------- 应用锁 ----------------
     @property
     def lock(self) -> dict | None:
