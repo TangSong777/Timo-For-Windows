@@ -24,11 +24,13 @@ from PyQt5.QtCore import (
     pyqtSignal,
 )
 from PyQt5.QtGui import (
+    QColor,
     QDesktopServices,
     QFont,
     QImage,
     QKeySequence,
     QPixmap,
+    QTextCharFormat,
     QTextCursor,
     QTextDocument,
 )
@@ -53,6 +55,7 @@ from PyQt5.QtWidgets import (
     QSplitter,
     QStackedWidget,
     QTextBrowser,
+    QTextEdit,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -1149,7 +1152,41 @@ class NoteEditor(QWidget):
         if not self.note:
             return
         self.preview.setHtml(render(self.edit.toPlainText(), self.lib.root, "开始写点什么……"))
+        self._paint_highlight()
         self._update_meta_labels()
+
+    def _paint_highlight(self):
+        """搜索词在预览里刷一层浅灰底（QTextBrowser 不认 span 背景，用 ExtraSelection）。"""
+        term = getattr(self, "_highlight", "")
+        if not term:
+            self.preview.setExtraSelections([])
+            return
+        fmt = QTextCharFormat()
+        fmt.setBackground(QColor("#c9c9c9"))
+        doc = self.preview.document()
+        sels = []
+        for word in [w for w in term.split() if w]:
+            cur = QTextCursor(doc)
+            while True:
+                cur = doc.find(word, cur)
+                if cur.isNull():
+                    break
+                sel = QTextEdit.ExtraSelection()
+                sel.cursor = cur
+                sel.format = fmt
+                sels.append(sel)
+        self.preview.setExtraSelections(sels)
+
+    def set_highlight(self, term: str):
+        """搜索时把命中词在预览里标出来。"""
+        term = (term or "").strip()
+        if term == getattr(self, "_highlight", ""):
+            return
+        self._highlight = term
+        if self.note and self.note.type in ("note", "article"):
+            self._refresh_preview()
+        else:
+            self._paint_highlight()
 
     def set_mode(self, mode: str):
         self._mode = mode

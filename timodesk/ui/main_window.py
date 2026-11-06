@@ -759,7 +759,13 @@ class MainWindow(QMainWindow):
         self._search_timer.start()
 
     def _apply_search(self):
+        term = self.search.text().strip()
+        self._search_buf = term
+        self.editor.set_highlight(term if term else "")
         self._reload_notes(animate=True)
+        # 搜索后直接落在第一条命中上，右侧就能看到高亮
+        if term and self.note_list.count():
+            self.note_list.setCurrentRow(0)
 
     # ---------------- 数据操作 ----------------
     def import_zip(self):
