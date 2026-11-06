@@ -408,6 +408,80 @@ class BackupDialog(FramelessDialog):
             pass
 
 
+class SettingsDialog(FramelessDialog):
+    """偏好设置：外观、回收站自动清理、列表排序。改完立即生效。"""
+
+    def __init__(self, parent, settings, theme_mode: str, sort_mode: str):
+        super().__init__(parent, "偏好设置")
+        from PyQt5.QtWidgets import QComboBox, QHBoxLayout, QSpinBox
+
+        self.setStyleSheet(_btn_qss())
+        self.settings = settings
+        self.theme_changed = False
+        self._orig_theme = theme_mode or "light"
+        self.setFixedSize(470, 330)
+
+        lay = QVBoxLayout(self.body)
+        lay.setContentsMargins(30, 20, 30, 20)
+        lay.setSpacing(14)
+
+        def row(label: str, widget) -> None:
+            line = QHBoxLayout()
+            line.setSpacing(12)
+            lab = QLabel(label, objectName="FieldLabel")
+            lab.setFixedWidth(112)
+            line.addWidget(lab)
+            line.addWidget(widget, 1)
+            lay.addLayout(line)
+
+        self.cmb_theme = QComboBox()
+        for key, text in (("light", "浅色"), ("dark", "深色"), ("system", "跟随系统")):
+            self.cmb_theme.addItem(text, key)
+        idx = max(0, self.cmb_theme.findData(theme_mode or "light"))
+        self.cmb_theme.setCurrentIndex(idx)
+        row("外观", self.cmb_theme)
+
+        self.spin_trash = QSpinBox()
+        self.spin_trash.setRange(0, 3650)
+        self.spin_trash.setValue(int(settings.get("trash_days", 0) or 0))
+        self.spin_trash.setSuffix(" 天")
+        self.spin_trash.setSpecialValueText("不自动清理")
+        row("回收站清理", self.spin_trash)
+
+        self.cmb_sort = QComboBox()
+        for key, text in (("updated", "最近更新"), ("created", "最近创建"), ("title", "标题")):
+            self.cmb_sort.addItem(text, key)
+        self.cmb_sort.setCurrentIndex(max(0, self.cmb_sort.findData(sort_mode or "updated")))
+        row("列表排序", self.cmb_sort)
+
+        hint = QLabel(
+            "回收站里超过设定天数的笔记会在启动时自动彻底删除；设为「不自动清理」就只在你点「清空回收站」时才删。",
+            objectName="FieldLabel",
+        )
+        hint.setWordWrap(True)
+        lay.addWidget(hint)
+        lay.addStretch(1)
+
+        btns = QHBoxLayout()
+        btns.addStretch(1)
+        cancel = QPushButton("关闭", objectName="Plain")
+        cancel.clicked.connect(self.reject)
+        btns.addWidget(cancel)
+        lay.addLayout(btns)
+
+        self.cmb_theme.currentIndexChanged.connect(self._on_theme)
+
+    def _on_theme(self, _idx: int) -> None:
+        self.theme_changed = self.cmb_theme.currentData() != self._orig_theme
+        self.settings.set("theme_mode", self.cmb_theme.currentData())
+
+    def apply(self) -> None:
+        """把当前控件值写进 settings（关闭时调用）。"""
+        self.settings.set("theme_mode", self.cmb_theme.currentData())
+        self.settings.set("trash_days", int(self.spin_trash.value()))
+        self.settings.set("sort_mode", self.cmb_sort.currentData())
+
+
 class ImportModeDialog(FramelessDialog):
     """已有数据时选择：合并（只加新的）或替换（清空后导入）。"""
 

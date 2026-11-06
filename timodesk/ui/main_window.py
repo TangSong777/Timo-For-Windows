@@ -231,6 +231,7 @@ class MainWindow(QMainWindow):
         menu.addAction("导出为 Timo ZIP…", self.export_zip)
         menu.addAction("导出为 Markdown 文件夹…", self.export_md_tree)
         menu.addAction("打开数据目录", self.open_data_dir)
+        menu.addAction("偏好设置…", self.open_settings)
         menu.addAction("备份与恢复…", self.backup_dialog)
         menu.addAction("已删除的主题…", self.trash_topics_dialog)
         menu.addSeparator()
@@ -1209,6 +1210,25 @@ class MainWindow(QMainWindow):
         self.lib.save()
         self.refresh_topics()
         self._toast("已锁定主题" if topic.locked else "已解除锁定")
+
+    def open_settings(self):
+        from .dialogs import SettingsDialog
+
+        dlg = SettingsDialog(
+            self,
+            self.settings,
+            self.settings.get("theme_mode", "light"),
+            getattr(self, "sort_mode", "updated"),
+        )
+        try:
+            dlg.exec_()
+        finally:
+            dlg.apply()
+        if dlg.theme_changed:
+            self.set_theme(self.settings.get("theme_mode", "light"))
+        want_sort = dlg.cmb_sort.currentData()
+        if want_sort != getattr(self, "sort_mode", "updated"):
+            self.set_sort(want_sort)
 
     def audit_data(self):
         """看看正文文件、附件跟 library.json 对不对得上。"""
