@@ -32,12 +32,17 @@ def archived():
     w.select_nav("archived")
 
 
+def top():
+    w.note_list.scrollToTop()
+    w.note_list.verticalScrollBar().setValue(0)
+
+
 QTimer.singleShot(500, pick)
-QTimer.singleShot(900, w.note_list.scrollToTop)
-QTimer.singleShot(1500, lambda: w.grab().save("docs/screenshot-main.png"))
-QTimer.singleShot(1700, archived)
-QTimer.singleShot(2100, w.note_list.scrollToTop)
-QTimer.singleShot(2600, lambda: w.grab().save("docs/screenshot-archived.png"))
-QTimer.singleShot(2800, app.quit)
+QTimer.singleShot(1300, top)
+QTimer.singleShot(1600, lambda: w.grab().save("docs/screenshot-main.png"))
+QTimer.singleShot(1800, archived)
+QTimer.singleShot(2400, top)
+QTimer.singleShot(2700, lambda: w.grab().save("docs/screenshot-archived.png"))
+QTimer.singleShot(2900, app.quit)
 app.exec_()
 print("saved")
