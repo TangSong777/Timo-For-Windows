@@ -1,5 +1,12 @@
 # 待发布变更
 
+## 2026-11-07 — 图片墙拖动排序
+
+- 图片墙原来用 `InternalMove`：`QListWidget` 的 mime 只带 Display/Decoration，**自定义 UserRole 会丢**（实测 mime 里没有路径），拖完顺序既写不回也可能取不到路径。
+- 改为自绘搬运（`takeItem`/`insertItem` + `orderChanged` 信号）；顺带修掉 `_on_wall_reordered` 里调用不存在的方法 `_rel_for_path`（应为 `_rel_of(item)`）。
+- 新增 `test_wallorder.py`（6 项：条目、路径保留、界面顺序、写回笔记、重开一致）。
+
+
 ## 2026-11-07 — 主题拖拽排序可保存
 
 - 主题列表原来用 Qt 的 `InternalMove`：`Topic` 是 Python 对象，序列化不进 mime，拖完 `data(UserRole)` 会丢，而且顺序从不写回。

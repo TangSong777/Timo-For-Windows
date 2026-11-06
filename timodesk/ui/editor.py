@@ -79,24 +79,56 @@ class ImageWall(QListWidget):
     filesDropped = pyqtSignal(list)
     pasteRequested = pyqtSignal()
     deleteRequested = pyqtSignal()
+    orderChanged = pyqtSignal()
 
-    def __init__(self, parent=None):
-        super().__init__(parent)
+    def __init__(self, parent=None, **kwargs):
+        super().__init__(parent, **kwargs)
         self.setAcceptDrops(True)
+        self.setDragDropMode(QListWidget.DragDrop)
+        self.setDefaultDropAction(Qt.MoveAction)
+        self._drag_row = -1
+
+    def startDrag(self, actions):  # noqa: N802
+        self._drag_row = self.currentRow()
+        super().startDrag(actions)
+
+    def _is_self_drag(self, e) -> bool:
+        return e.source() is self and self._drag_row >= 0
 
     def dragEnterEvent(self, e):
-        if e.mimeData().hasUrls():
+        if e.mimeData().hasUrls() or self._is_self_drag(e):
             e.acceptProposedAction()
             return
         super().dragEnterEvent(e)
 
     def dragMoveEvent(self, e):
-        if e.mimeData().hasUrls():
+        if e.mimeData().hasUrls() or self._is_self_drag(e):
             e.acceptProposedAction()
             return
         super().dragMoveEvent(e)
 
+    def _move_row(self, e) -> None:
+        """内部重排：自己 take/insert，避免 QListWidget 序列化时丢掉 UserRole。"""
+        src = self._drag_row
+        row = self.indexAt(e.pos()).row()
+        if row < 0:
+            row = self.count()
+        if src < 0 or row == src or row == src + 1:
+            return
+        item = self.takeItem(src)
+        if item is None:
+            return
+        if row > src:
+            row -= 1
+        self.insertItem(row, item)
+        self.setCurrentRow(row)
+        self.orderChanged.emit()
+
     def dropEvent(self, e):
+        if self._is_self_drag(e) and not e.mimeData().hasUrls():
+            e.acceptProposedAction()
+            self._move_row(e)
+            return
         if e.mimeData().hasUrls():
             files = []
             for url in e.mimeData().urls():
@@ -569,9 +601,7 @@ class NoteEditor(QWidget):
         self.wall.filesDropped.connect(self._add_images_from_files)
         self.wall.pasteRequested.connect(self._paste_wall_image)
         self.wall.deleteRequested.connect(self._remove_selected_images)
-        self.wall.setDragDropMode(QListWidget.InternalMove)
-        self.wall.setDefaultDropAction(Qt.MoveAction)
-        self.wall.model().rowsMoved.connect(self._on_wall_reordered)
+        self.wall.orderChanged.connect(self._on_wall_reordered)
         self.wall.setViewMode(QListWidget.IconMode)
         self.wall.setIconSize(QSize(190, 190))
         self.wall.setGridSize(QSize(198, 202))
@@ -1002,7 +1032,8 @@ class NoteEditor(QWidget):
             return
         order = []
         for i in range(self.wall.count()):
-            rel = self._rel_for_path(self.wall.item(i).data(Qt.UserRole))
+            item = self.wall.item(i)
+            rel = self._rel_of(item) if item else None
             if rel:
                 order.append(rel)
         if len(order) == len(self.note.images) and order != self.note.images:
