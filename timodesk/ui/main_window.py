@@ -879,10 +879,15 @@ class MainWindow(QMainWindow):
                 self.new_topic()
                 if not self.lib.topics:
                     return
-            t = self.lib.sorted_topics()[0]
+            # 全部/归档视图里新建：优先落到上次用过的主题，别每次都塞给第一个
+            last = self.settings.get("last_topic_id", "")
+            t = self.lib.topics.get(last)
+            if not t or t.state == "trash":
+                t = self.lib.sorted_topics()[0]
             topic_id = t.id
         note = self.lib.add_note(topic_id, note_type, "", None)
         self.lib.save()
+        self.settings.set("last_topic_id", topic_id)
         self.refresh_topics()
         if self.view != ("topic", topic_id):
             self.view = ("topic", topic_id)
