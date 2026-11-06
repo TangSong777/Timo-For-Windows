@@ -57,7 +57,10 @@ def _install_excepthook(root: Path) -> None:
     """windowed 模式没有控制台，未捕获异常写进 Data/error.log。"""
     log = root / "error.log"
 
+    state = {"shown": False}
+
     def hook(tp, val, tb):
+        import os as _os
         import traceback
         from datetime import datetime
 
@@ -67,6 +70,23 @@ def _install_excepthook(root: Path) -> None:
                 f.write(f"\n[{datetime.now():%Y-%m-%d %H:%M:%S}]\n{text}")
         except Exception:  # noqa: BLE001
             pass
+        # windowed 模式用户看不到任何东西，至少给个提示（防递归：只弹一次）
+        if not state["shown"] and not _os.environ.get("TIMO_NO_DIALOG"):
+            state["shown"] = True
+            try:
+                from PyQt5.QtWidgets import QApplication
+
+                app = QApplication.instance()
+                if app is not None:
+                    from .ui.dialogs import error
+
+                    error(
+                        app.activeWindow(),
+                        "出了点问题",
+                        f"操作没有完成：{val}\n\n详细信息已记录在：\n{log}",
+                    )
+            except Exception:  # noqa: BLE001
+                pass
         sys.__excepthook__(tp, val, tb)
 
     sys.excepthook = hook
