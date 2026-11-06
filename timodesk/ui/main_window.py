@@ -95,6 +95,10 @@ from .title_bar import (
 from .widgets import AutoFadeScrollBar, NoteCardDelegate, NoteList, TopicDelegate, TopicList
 
 
+class ImportCanceled(Exception):
+    """用户在导入进度条上点了取消。"""
+
+
 class MainWindow(QMainWindow):
     def __init__(self, lib: Library, parent=None):
         super().__init__(parent)
@@ -797,12 +801,21 @@ class MainWindow(QMainWindow):
             dlg.set_progress(done, total)
             QApplication.processEvents()
             if dlg.was_canceled():
-                raise RuntimeError("用户取消")
+                raise ImportCanceled()
 
+        backup = None
         try:
             backup = self._backup_current() if mode == "replace" else None
             report = import_export(path, self.lib, progress=progress, mode=mode)
             self.lib.save()
+        except ImportCanceled:
+            dlg.close()
+            restored = self._restore_from_backup(backup) if backup else False
+            if restored:
+                info(self, "已取消", "导入已取消，数据已还原成导入前的样子。")
+            else:
+                info(self, "已取消", "导入已取消。")
+            return
         except Exception as e:  # noqa: BLE001
             dlg.close()
             error(self, "导入失败", f"{e}")
@@ -820,6 +833,31 @@ class MainWindow(QMainWindow):
         if backup:
             msg += f"\n原数据已备份到：{backup}"
         info(self, "导入完成", msg)
+
+    def _restore_from_backup(self, bdir: Path | None) -> bool:
+        """导入被取消时把库还原回导入前。"""
+        if not bdir or not bdir.exists():
+            return False
+        import shutil
+
+        try:
+            meta = bdir / "library.json"
+            if meta.exists():
+                shutil.copy2(meta, self.lib.meta_path)
+            for name, real in (("notes", self.lib.notes_dir), ("attachments", self.lib.attachments_dir)):
+                src = bdir / name
+                if not src.exists():
+                    continue
+                if real.exists():
+                    shutil.rmtree(real)
+                shutil.copytree(src, real)
+            self.lib.load()
+            self.editor.set_note(None)
+            self.refresh_topics()
+            self._reload_notes()
+            return True
+        except Exception:
+            return False
 
     def _backup_current(self) -> Path | None:
         if not self.lib.notes:
