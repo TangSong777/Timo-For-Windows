@@ -23,3 +23,10 @@
 - **文件**：`timodesk/ui/editor.py`（新增 `ImageWall` 类）
 - **验证**：`test_wall.py` 12/12
 - **影响**：图库从"只能点按钮添加"补齐到和正文一样随手加图
+
+## 2026-11-06 — 单条笔记导出 PDF
+
+- **类型**：功能
+- **内容**：笔记右键新增「导出为 PDF…」，用预览同一套 HTML 渲染走 `QPrinter`，A4 页边距 16mm
+- **文件**：`timodesk/ui/main_window.py`（`_export_pdf`）
+- **验证**：`test_pdf.py` 4/4，产出文件头 `%PDF-`

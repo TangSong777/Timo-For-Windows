@@ -138,7 +138,7 @@ class MainWindow(QMainWindow):
         self._search_timer.setInterval(220)
         self._search_timer.timeout.connect(self._apply_search)
         self.refresh_topics()
-        self.select_nav("all")
+        self._restore_view()
 
     # ---------------- 布局 ----------------
     def _build_ui(self):
@@ -334,6 +334,42 @@ class MainWindow(QMainWindow):
             ("Ctrl+Shift+E", lambda: self.editor.set_mode("edit")),
         ]:
             QShortcut(QKeySequence(seq), self, fn)
+
+    # ---------------- 视图记忆 ----------------
+    def _restore_view(self):
+        """打开时回到上次的视图和笔记；记录失效就退回「全部笔记」。"""
+        raw = self.settings.get("last_view") or {}
+        kind = raw.get("kind") if isinstance(raw, dict) else None
+        topic_id = raw.get("topic") if isinstance(raw, dict) else None
+        last_note = self.settings.get("last_note") or None
+
+        if kind == "topic" and topic_id:
+            topic = self.lib.topics.get(topic_id)
+            if topic is not None and topic.state != "trash":
+                self.view = ("topic", topic_id)
+                self.nav.blockSignals(True)
+                self.nav.setCurrentRow(-1)
+                self.nav.blockSignals(False)
+                self.refresh_topics()
+                self._reload_notes(select_id=last_note)
+                return
+
+        kind = kind if kind in ("all", "archived", "trash") else "all"
+        self.view = (kind, None)
+        row = {"all": 0, "archived": 1, "trash": 2}[kind]
+        self.nav.blockSignals(True)
+        self.nav.setCurrentRow(row)
+        self.nav.blockSignals(False)
+        self._reload_notes(select_id=last_note)
+
+    def _save_view(self):
+        kind, topic_id = self.view
+        try:
+            self.settings.set("last_view", {"kind": kind, "topic": topic_id or ""})
+            note = getattr(self.editor, "note", None)
+            self.settings.set("last_note", note.id if note else "")
+        except Exception:
+            pass
 
     # ---------------- 侧栏 ----------------
     def refresh_topics(self):
@@ -601,6 +637,7 @@ class MainWindow(QMainWindow):
         a_dup = menu.addAction("复制笔记")
         a_copy_md = menu.addAction("复制为 Markdown")
         a_export_md = menu.addAction("导出为 Markdown…")
+        a_export_pdf = menu.addAction("导出为 PDF…")
         menu.addSeparator()
         a_del = a_restore = None
         if note.state == "trash":
@@ -621,6 +658,8 @@ class MainWindow(QMainWindow):
             self._toast("已复制 Markdown")
         elif act is a_export_md:
             self._export_markdown(note)
+        elif act is a_export_pdf:
+            self._export_pdf(note)
         elif act is a_del:
             self.lib.delete_note(nid)
         elif act is a_restore:
@@ -999,6 +1038,37 @@ class MainWindow(QMainWindow):
         extra = f"，图片 {copied} 张" if copied else ""
         info(self, "已导出", f"已保存到\n{p}{extra}")
 
+    def _export_pdf(self, note: Note):
+        """把笔记排成 PDF（用预览同一套渲染）。"""
+        from PyQt5.QtGui import QTextDocument
+        from PyQt5.QtPrintSupport import QPrinter
+
+        from ..render import render
+
+        content = self.lib.content(note.id)
+        t = self.lib.topics.get(note.topic_id)
+        title = note.display_title(content, t.name if t else "")
+        safe = re.sub(r'[\\/:*?"<>|]', "_", title).strip()[:60] or "未命名"
+        path, _ = QFileDialog.getSaveFileName(self, "导出为 PDF", f"{safe}.pdf", "PDF (*.pdf)")
+        if not path:
+            return
+        doc = QTextDocument()
+        doc.setHtml(render(content, self.lib.root))
+        doc.setDocumentMargin(0)
+        printer = QPrinter(QPrinter.HighResolution)
+        printer.setOutputFormat(QPrinter.PdfFormat)
+        printer.setOutputFileName(path)
+        printer.setPageMargins(16, 16, 16, 16, QPrinter.Millimeter)
+        try:
+            doc.print_(printer)
+        except Exception as e:  # pragma: no cover - 打印机子系统异常
+            error(self, "导出失败", f"写入 PDF 时出错：\n{e}")
+            return
+        if not Path(path).exists():
+            error(self, "导出失败", "没有生成文件，请换个位置再试。")
+            return
+        self._toast(f"已导出 {Path(path).name}")
+
     def set_sort(self, mode: str):
         if mode == getattr(self, "sort_mode", "updated"):
             return
@@ -1038,6 +1108,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, e):  # noqa: N802
         self._save_geometry()
+        self._save_view()
         self.save_now()
         self.lib.save()
         # 有托盘时，关闭 = 收进托盘；从托盘菜单退出才算真退出
