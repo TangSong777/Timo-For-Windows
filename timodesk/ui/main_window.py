@@ -682,6 +682,15 @@ class MainWindow(QMainWindow):
             return
         self.lib.reorder_topics(ids)
 
+    def _move_targets(self):
+        """右键「移动到主题」的可选目标：正常主题 + 归档主题（回收站里的不给选）。"""
+        ts = [t for t in self.lib.topics.values() if t.state != "trash"]
+        ts.sort(key=lambda t: (t.order, t.created_at))
+        return ts
+
+    def _move_label(self, t) -> str:
+        return t.name + ("（已归档）" if t.state == "archived" else "")
+
     def _on_notes_dropped(self, note_ids, topic_id: str):
         """把笔记（可多选）拖到左侧主题上：批量移动到该主题。"""
         ids = [i for i in note_ids if i in self.lib.notes]
@@ -731,9 +740,9 @@ class MainWindow(QMainWindow):
         menu.addSeparator()
         a_arch = menu.addAction("取消归档" if note.state == "archived" else "归档")
         move_menu = menu.addMenu("移动到主题")
-        for t in self.lib.sorted_topics():
+        for t in self._move_targets():
             if t.id != note.topic_id:
-                act = move_menu.addAction(t.name)
+                act = move_menu.addAction(self._move_label(t))
                 act.setData(t.id)
         a_dup = menu.addAction("复制笔记")
         a_copy_md = menu.addAction("复制为 Markdown")
@@ -788,8 +797,8 @@ class MainWindow(QMainWindow):
             a_arch = menu.addAction(f"归档 {n} 条")
             a_restore = None
         move_menu = menu.addMenu(f"移动到主题（{n} 条）")
-        for t in self.lib.sorted_topics():
-            act = move_menu.addAction(t.name)
+        for t in self._move_targets():
+            act = move_menu.addAction(self._move_label(t))
             act.setData(t.id)
         menu.addSeparator()
         a_del = menu.addAction(f"删除 {n} 条")

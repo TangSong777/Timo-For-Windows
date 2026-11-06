@@ -506,13 +506,22 @@ class Library:
         """批量移动到主题，返回实际移动的条数（只存一次盘）。"""
         if topic_id not in self.topics:
             return 0
+        topic = self.topics[topic_id]
         moved = 0
         for nid in note_ids:
             n = self.notes.get(nid)
-            if n and n.topic_id != topic_id:
-                n.topic_id = topic_id
-                n.updated_at = now_iso()
-                moved += 1
+            if not n or n.topic_id == topic_id:
+                continue
+            n.topic_id = topic_id
+            n.updated_at = now_iso()
+            # 目标主题是归档的，笔记跟着归档；拖回正常主题就恢复
+            if topic.state == "archived" and n.state == "active":
+                n.state = "archived"
+                n.archived_at = now_iso()
+            elif topic.state == "active" and n.state == "archived":
+                n.state = "active"
+                n.archived_at = None
+            moved += 1
         if moved:
             self.save()
         return moved
