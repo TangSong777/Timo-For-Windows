@@ -1,5 +1,11 @@
 # 待发布变更
 
+## 2026-11-07 — 清理未引用的图片
+
+- 正文里删掉图片后，`attachments/` 里的文件还留着，越攒越大。数据菜单新增「清理未使用的图片…」：统计没有任何笔记引用（正文 `![]()`、`<img>`、图库 `images` 都算引用）的附件，二次确认后删除。
+- 新增 `Library.referenced_attachments()` / `unused_attachments()` / `purge_attachments()`。
+- 新增 `test_attachments.py`（10 项）。
+
 ## 2026-11-07 — 侧栏主题计数按主题状态统计
 
 - 归档主题下面的笔记也是归档状态，可侧栏一直按 active 计数，结果显示 0（点进去却有一堆）。现在归档主题数自己的归档笔记，正常主题仍数正常笔记；计数由 `refresh_topics` 预先算好塞给 delegate，不再每帧遍历全库。

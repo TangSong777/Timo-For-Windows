@@ -637,6 +637,40 @@ class Library:
         shutil.copy2(src, dst)
         return f"attachments/{dst.name}"
 
+    def referenced_attachments(self) -> set[str]:
+        """所有笔记正文与图库里引用到的附件文件名。"""
+        used: set[str] = set()
+        for n in self.notes.values():
+            for img in n.images:
+                used.add(Path(img.replace("\\", "/")).name)
+            text = self.content(n.id)
+            for m in re.findall(r"attachments/([^)\]\s\"'<>]+)", text):
+                used.add(m)
+        return used
+
+    def unused_attachments(self) -> list[str]:
+        """attachments/ 里没被任何笔记引用的文件（粘贴后删掉引用会留下）。"""
+        if not self.attachments_dir.exists():
+            return []
+        used = self.referenced_attachments()
+        out = []
+        for p in sorted(self.attachments_dir.iterdir()):
+            if p.is_file() and p.name not in used:
+                out.append(p.name)
+        return out
+
+    def purge_attachments(self, names: list[str]) -> int:
+        n = 0
+        for name in names:
+            p = self.attachment_path(Path(name).name)
+            try:
+                if p.is_file():
+                    p.unlink()
+                    n += 1
+            except OSError:
+                pass
+        return n
+
     def attachment_abspath(self, rel: str) -> Path:
         rel = rel.replace("\\", "/")
         if rel.startswith("attachments/"):

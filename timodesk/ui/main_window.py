@@ -235,6 +235,7 @@ class MainWindow(QMainWindow):
         menu.addAction("已删除的主题…", self.trash_topics_dialog)
         menu.addSeparator()
         menu.addAction("清空回收站…", self.empty_trash)
+        menu.addAction("清理未使用的图片…", self.clean_attachments)
         menu.addSeparator()
         appearance = menu.addMenu("外观")
         grp = QActionGroup(self)
@@ -1148,6 +1149,29 @@ class MainWindow(QMainWindow):
         self.lib.save()
         self.refresh_topics()
         self._reload_notes(animate=True)
+
+    def clean_attachments(self):
+        """删掉 attachments/ 里没有任何笔记引用的图片（粘贴后又删掉文字常会留下）。"""
+        unused = self.lib.unused_attachments()
+        if not unused:
+            info(self, "清理未使用的图片", "没有发现多余的图片，附件目录是干净的。")
+            return
+        size = 0
+        for name in unused:
+            try:
+                size += self.lib.attachment_path(name).stat().st_size
+            except OSError:
+                pass
+        sample = "、".join(unused[:3]) + ("…" if len(unused) > 3 else "")
+        if not confirm(
+            self,
+            "清理未使用的图片",
+            f"有 {len(unused)} 个图片文件没有被任何笔记引用（约 {size / 1024 / 1024:.1f} MB）：\n{sample}\n\n"
+            "删除后无法恢复（备份里也不含附件）。继续？",
+        ):
+            return
+        n = self.lib.purge_attachments(unused)
+        self._toast(f"已清理 {n} 个文件")
 
     def export_zip(self):
         path, _ = QFileDialog.getSaveFileName(
