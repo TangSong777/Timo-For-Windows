@@ -7,6 +7,7 @@ from PyQt5.QtWidgets import (
     QLabel,
     QProgressBar,
     QPushButton,
+    QSizePolicy,
     QVBoxLayout,
 )
 
@@ -379,3 +380,124 @@ class LockDialog(FramelessDialog):
         self.settings.clear_password()
         self.changed = True
         self.accept()
+
+
+class BackupDialog(FramelessDialog):
+    """备份列表：立即备份、从备份恢复。"""
+
+    def __init__(self, parent, lib):
+        super().__init__(parent, "备份与恢复")
+        from PyQt5.QtWidgets import QHBoxLayout, QListWidget, QListWidgetItem, QPushButton
+
+        from .. import backup
+
+        self.setStyleSheet(_BTN_QSS)
+        self.lib = lib
+        self.restored = False
+        self.setFixedSize(520, 460)
+
+        lay = QVBoxLayout(self.body)
+        lay.setContentsMargins(28, 22, 28, 22)
+        lay.setSpacing(12)
+
+        tip = QLabel("每次启动最多每天自动备份一次，只保留最近 7 份。备份包含笔记正文与库结构，不含图片附件。")
+        tip.setWordWrap(True)
+        tip.setStyleSheet(f"color:{C['muted']};font-size:12px;")
+        lay.addWidget(tip)
+
+        self.list = QListWidget()
+        self.list.setObjectName("BackupList")
+        self.list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.list.setStyleSheet(
+            f"QListWidget#BackupList{{background:#fff;border:1px solid {C['card_border']};border-radius:10px;padding:4px;}}"
+            f"QListWidget#BackupList::item{{padding:7px 8px;border-radius:6px;}}"
+            f"QListWidget#BackupList::item:selected{{background:#f0f0f2;color:{C['ink']};}}"
+        )
+        lay.addWidget(self.list, 1)
+
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        fixed = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        b_now = QPushButton("立即备份")
+        b_now.setSizePolicy(fixed)
+        b_now.setObjectName("Plain")
+        b_now.clicked.connect(self._make_now)
+        row.addWidget(b_now)
+        self.b_restore = QPushButton("恢复所选")
+        self.b_restore.setSizePolicy(fixed)
+        self.b_restore.setObjectName("Primary")
+        self.b_restore.clicked.connect(self._restore)
+        row.addWidget(self.b_restore)
+        row.addStretch(1)
+        b_open = QPushButton("打开文件夹")
+        b_open.setSizePolicy(fixed)
+        b_open.setMaximumWidth(92)
+        b_open.setObjectName("Link")
+        b_open.clicked.connect(self._open_dir)
+        row.addWidget(b_open)
+        b_close = _button("关闭", "Plain")
+        b_close.clicked.connect(self.accept)
+        row.addWidget(b_close)
+        lay.addLayout(row)
+
+        self.status = QLabel("")
+        self.status.setStyleSheet(f"color:{C['muted']};font-size:12px;")
+        lay.addWidget(self.status)
+        self._reload()
+
+    def _reload(self):
+        from PyQt5.QtWidgets import QListWidgetItem
+
+        from .. import backup
+
+        self.list.clear()
+        items = backup.list_all(self.lib.root)
+        for it in items:
+            size = it["size"] / 1024
+            label = it["name"].replace("timo-backup-", "").replace(".zip", "")
+            text = f"{label}    ·    {it['mtime']:%m-%d %H:%M}    ·    {size:.0f} KB"
+            row = QListWidgetItem(text)
+            row.setData(0x0100, str(it["path"]))
+            self.list.addItem(row)
+        if items:
+            self.list.setCurrentRow(0)
+        self.b_restore.setEnabled(bool(items))
+        self.status.setText(f"共 {len(items)} 份备份。" if items else "还没有备份。")
+
+    def _make_now(self):
+        from .. import backup
+
+        try:
+            p = backup.create(self.lib)
+        except Exception as e:
+            self.status.setText(f"备份失败：{e}")
+            return
+        self._reload()
+        self.status.setText(f"已备份到 {p.name}")
+
+    def _restore(self):
+        from .. import backup
+
+        item = self.list.currentItem()
+        if item is None:
+            return
+        path = item.data(0x0100)
+        if not confirm(self, "恢复备份", "当前库会被这份备份覆盖（覆盖前会先备份一次现状）。\n确定继续吗？", "恢复"):
+            return
+        try:
+            backup.restore(self.lib, path)
+        except Exception as e:
+            error(self, "恢复失败", str(e))
+            return
+        self.restored = True
+        self.accept()
+
+    def _open_dir(self):
+        from .. import backup
+        import os
+
+        d = backup.backup_dir(self.lib.root)
+        try:
+            os.startfile(str(d))
+        except Exception:
+            pass

@@ -255,6 +255,14 @@ def run():
             if not _import_with_progress(lib, dlg.path):
                 return 1
 
+    try:
+        from .backup import create as _make_backup, due as _backup_due
+
+        if lib.notes and _backup_due(lib):
+            _make_backup(lib)
+    except Exception:
+        pass
+
     win = MainWindow(lib)
     win.settings = settings
     tray = TrayIcon(win)

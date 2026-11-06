@@ -202,6 +202,7 @@ class MainWindow(QMainWindow):
         menu.addSeparator()
         menu.addAction("导出为 Timo ZIP…", self.export_zip)
         menu.addAction("打开数据目录", self.open_data_dir)
+        menu.addAction("备份与恢复…", self.backup_dialog)
         menu.addAction("应用锁…", self.lock_settings)
         menu.addSeparator()
         menu.addAction("清空回收站…", self.empty_trash)
@@ -825,6 +826,15 @@ class MainWindow(QMainWindow):
             "导出完成",
             f"已导出到：\n{out}\n\n{counts['topics']} 个主题、{counts['documents']} 条笔记、{counts['attachments']} 个附件。",
         )
+
+    def backup_dialog(self):
+        from .dialogs import BackupDialog
+
+        d = BackupDialog(self, self.lib)
+        if d.exec_() and d.restored:
+            self.editor.set_note(None)
+            self.refresh_topics()
+            self._reload_notes(animate=True)
 
     def lock_settings(self):
         from .dialogs import LockDialog, info
