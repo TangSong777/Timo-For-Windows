@@ -1,13 +1,12 @@
 """主窗口：三栏布局 —— 主题侧栏 / 笔记列表 / 编辑器。"""
 from __future__ import annotations
 
-import os
+from ctypes import wintypes
 from pathlib import Path
 
-from PyQt5.QtCore import QSize, Qt, QTimer
-from PyQt5.QtGui import QIcon, QKeySequence
+from PyQt5.QtCore import QEvent, QPoint, QSize, Qt, QTimer
+from PyQt5.QtGui import QCursor, QKeySequence
 from PyQt5.QtWidgets import (
-    QAction,
     QApplication,
     QFileDialog,
     QHBoxLayout,
@@ -29,16 +28,32 @@ from PyQt5.QtWidgets import (
 
 from ..exporter import export_zip
 from ..importer import import_export
-from ..store import Library, Note, TYPE_LABELS
+from ..store import Library, Note
 from .editor import NoteEditor
 from .theme import C, NOTE_COLORS
-from .widgets import NoteCardDelegate, TopicDelegate, human_time
+from .title_bar import (
+    FrameEdge,
+    HTBOTTOM,
+    HTBOTTOMLEFT,
+    HTBOTTOMRIGHT,
+    HTLEFT,
+    HTRIGHT,
+    HTTOP,
+    HTTOPLEFT,
+    HTTOPRIGHT,
+    RESIZE_BORDER,
+    WM_NCHITTEST,
+    TitleBar,
+    rounded_mask,
+)
+from .widgets import NoteCardDelegate, TopicDelegate
 
 
 class MainWindow(QMainWindow):
     def __init__(self, lib: Library, parent=None):
         super().__init__(parent)
         self.lib = lib
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Window)
         self.view = ("all", None)  # (kind, topic_id)
         self._pending_save = None
         self._search_buf = ""
@@ -62,7 +77,16 @@ class MainWindow(QMainWindow):
     def _build_ui(self):
         central = QWidget(objectName="Root")
         self.setCentralWidget(central)
-        h = QHBoxLayout(central)
+        outer = QVBoxLayout(central)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        self.title_bar = TitleBar(self)
+        outer.addWidget(self.title_bar)
+
+        body = QWidget(objectName="Body")
+        outer.addWidget(body, 1)
+        h = QHBoxLayout(body)
         h.setContentsMargins(0, 0, 0, 0)
         h.setSpacing(0)
 
@@ -70,17 +94,8 @@ class MainWindow(QMainWindow):
         sidebar = QWidget(objectName="Sidebar")
         sidebar.setFixedWidth(220)
         sb = QVBoxLayout(sidebar)
-        sb.setContentsMargins(12, 16, 10, 12)
+        sb.setContentsMargins(12, 12, 10, 12)
         sb.setSpacing(6)
-
-        brand_row = QHBoxLayout()
-        brand = QLabel("Timo", objectName="Brand")
-        brand_row.addWidget(brand)
-        brand_sub = QLabel("本地笔记", objectName="BrandSub")
-        brand_row.addWidget(brand_sub, alignment=Qt.AlignBottom)
-        brand_row.addStretch(1)
-        sb.addLayout(brand_row)
-        sb.addSpacing(6)
 
         self.nav = QListWidget(objectName="NavList")
         self.nav.setFrameShape(QListWidget.NoFrame)
@@ -191,6 +206,11 @@ class MainWindow(QMainWindow):
             f"QStatusBar::item{{border:none;}}"
         )
         self.statusBar().showMessage("")
+
+        # 无边框窗口的轮廓
+        self._edge = FrameEdge(central)
+        self._edge.setGeometry(central.rect())
+        self._edge.raise_()
 
     def _build_shortcuts(self):
         for seq, fn in [
@@ -594,6 +614,85 @@ class MainWindow(QMainWindow):
         self.save_now()
         self.lib.save()
         super().closeEvent(e)
+
+    # ---------------- 无边框窗口 ----------------
+    def toggle_maximized(self):
+        if self.isMaximized():
+            self.showNormal()
+        else:
+            self.showMaximized()
+        self.title_bar.sync_max_button()
+        self._apply_mask()
+
+    def _apply_mask(self):
+        if not hasattr(self, "title_bar"):
+            return
+        if self.isMaximized() or self.isFullScreen():
+            self.clearMask()
+        else:
+            self.setMask(rounded_mask(self.width(), self.height()))
+
+    def resizeEvent(self, e):  # noqa: N802
+        super().resizeEvent(e)
+        self._apply_mask()
+        edge = getattr(self, "_edge", None)
+        if edge is not None:
+            edge.setGeometry(self.centralWidget().rect())
+            edge.raise_()
+
+    def showEvent(self, e):  # noqa: N802
+        super().showEvent(e)
+        self._apply_mask()
+
+    def changeEvent(self, e):  # noqa: N802
+        if e.type() == QEvent.WindowStateChange:
+            QTimer.singleShot(0, self._on_window_state)
+        super().changeEvent(e)
+
+    def _on_window_state(self):
+        if hasattr(self, "title_bar"):
+            self.title_bar.sync_max_button()
+        self._apply_mask()
+
+    def _hit_border(self, pos: QPoint) -> int:
+        """鼠标在窗口边缘时返回 Win32 命中码，交给系统处理缩放。"""
+        w, h = self.width(), self.height()
+        x, y = pos.x(), pos.y()
+        edge = RESIZE_BORDER
+        left, right = x <= edge, x >= w - edge
+        top, bottom = y <= edge, y >= h - edge
+        if top and left:
+            return HTTOPLEFT
+        if top and right:
+            return HTTOPRIGHT
+        if bottom and left:
+            return HTBOTTOMLEFT
+        if bottom and right:
+            return HTBOTTOMRIGHT
+        if left:
+            return HTLEFT
+        if right:
+            return HTRIGHT
+        if top:
+            return HTTOP
+        if bottom:
+            return HTBOTTOM
+        return 0
+
+    def nativeEvent(self, eventType, message):  # noqa: N802
+        if eventType not in (b"windows_generic_MSG", b"windows_dispatcher_MSG"):
+            return super().nativeEvent(eventType, message)
+        try:
+            msg = wintypes.MSG.from_address(int(message))
+        except Exception:  # noqa: BLE001
+            return super().nativeEvent(eventType, message)
+        if msg.message == WM_NCHITTEST and not self.isMaximized():
+            pos = self.mapFromGlobal(QCursor.pos())
+            if 0 <= pos.x() < self.width() and 0 <= pos.y() < self.height():
+                hit = self._hit_border(pos)
+                if hit:
+                    return True, hit
+        return super().nativeEvent(eventType, message)
 
 
 class _UnusedNavDelegate:
