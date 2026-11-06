@@ -69,6 +69,55 @@ from .widgets import AutoFadeScrollBar
 from .widgets import human_time
 
 
+IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp")
+
+
+class ImageWall(QListWidget):
+    """图片墙：可以拖入图片文件、Ctrl+V 粘贴、Delete 删除选中项。"""
+
+    filesDropped = pyqtSignal(list)
+    pasteRequested = pyqtSignal()
+    deleteRequested = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAcceptDrops(True)
+
+    def dragEnterEvent(self, e):
+        if e.mimeData().hasUrls():
+            e.acceptProposedAction()
+            return
+        super().dragEnterEvent(e)
+
+    def dragMoveEvent(self, e):
+        if e.mimeData().hasUrls():
+            e.acceptProposedAction()
+            return
+        super().dragMoveEvent(e)
+
+    def dropEvent(self, e):
+        if e.mimeData().hasUrls():
+            files = []
+            for url in e.mimeData().urls():
+                p = url.toLocalFile()
+                if p and Path(p).suffix.lower() in IMAGE_EXTS:
+                    files.append(p)
+            if files:
+                self.filesDropped.emit(files)
+            e.acceptProposedAction()
+            return
+        super().dropEvent(e)
+
+    def keyPressEvent(self, e):
+        if e.key() in (Qt.Key_Delete, Qt.Key_Backspace) and self.selectedItems():
+            self.deleteRequested.emit()
+            return
+        if e.matches(QKeySequence.Paste):
+            self.pasteRequested.emit()
+            return
+        super().keyPressEvent(e)
+
+
 # ---------------------------------------------------------------- 基础控件
 class MarkdownEdit(QPlainTextEdit):
     """正文编辑框：粘贴/拖入图片会发出 imageDropped。"""
@@ -456,7 +505,10 @@ class NoteEditor(QWidget):
         bar.addWidget(b)
         gl.addLayout(bar)
 
-        self.wall = QListWidget()
+        self.wall = ImageWall()
+        self.wall.filesDropped.connect(self._add_images_from_files)
+        self.wall.pasteRequested.connect(self._paste_wall_image)
+        self.wall.deleteRequested.connect(self._remove_selected_images)
         self.wall.setDragDropMode(QListWidget.InternalMove)
         self.wall.setDefaultDropAction(Qt.MoveAction)
         self.wall.model().rowsMoved.connect(self._on_wall_reordered)
@@ -910,7 +962,9 @@ class NoteEditor(QWidget):
             item.setToolTip(Path(rel).name)
             self.wall.addItem(item)
         n = len(self.note.images)
-        self.gallery_hint.setText(f"{n} 张图片 · 双击看大图，右键可移除" if n else "还没有图片，点右上角添加")
+        self.gallery_hint.setText(
+            f"{n} 张图片 · 双击看大图，拖入或粘贴可添加" if n else "还没有图片，点右上角添加，也可以把图片拖进来"
+        )
 
     def _open_viewer(self, item: QListWidgetItem):
         paths = [self.wall.item(i).data(Qt.UserRole) for i in range(self.wall.count())]
@@ -986,6 +1040,58 @@ class NoteEditor(QWidget):
             self._add_image(f, reload=False)
         self._reload_wall()
         self.metaChanged.emit()
+
+    def _add_images_from_files(self, files: list):
+        """拖进图片墙的文件。"""
+        if not self.note or self.note.type != "gallery" or not files:
+            return
+        for f in files:
+            self._add_image(f, reload=False)
+        self._reload_wall()
+        self.metaChanged.emit()
+
+    def _paste_wall_image(self):
+        """Ctrl+V：把剪贴板里的图片存进图库。"""
+        if not self.note or self.note.type != "gallery":
+            return
+        img = QApplication.clipboard().image()
+        if img.isNull():
+            self._flash("剪贴板里没有图片")
+            return
+        tmp = self.lib.root / "attachments" / f"_paste_{os.getpid()}.png"
+        tmp.parent.mkdir(parents=True, exist_ok=True)
+        if not img.save(str(tmp), "PNG"):
+            self._flash("图片保存失败")
+            return
+        try:
+            self._add_image(str(tmp), reload=False)
+        finally:
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+        self._reload_wall()
+        self.metaChanged.emit()
+        self._flash("已粘贴图片")
+
+    def _remove_selected_images(self):
+        """Delete：从图库里删掉选中的图片（文件留在附件目录）。"""
+        if not self.note or self.note.type != "gallery":
+            return
+        rels = [self._rel_of(it) for it in self.wall.selectedItems()]
+        rels = [r for r in rels if r]
+        if not rels:
+            return
+        for r in rels:
+            if r in self.note.images:
+                self.note.images.remove(r)
+        self.lib.save()
+        self._reload_wall()
+        self.metaChanged.emit()
+
+    def _flash(self, text: str, ms: int = 1200):
+        self.save_state.setText(text)
+        QTimer.singleShot(ms, lambda: self.save_state.setText(""))
 
     def _insert_image_file(self, path: str):
         if not self.note:
