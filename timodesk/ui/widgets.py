@@ -318,7 +318,6 @@ class TopicDelegate(QStyledItemDelegate):
             painter.drawRoundedRect(QRectF(r.left() + 2, r.center().y() - 8, 2.5, 16), 1.2, 1.2)
 
         cnt = self.counts.get(topic.id, 0)
-
         archived = getattr(topic, "state", "active") == "archived"
         name_font = QFont(option.font)
         name_font.setPixelSize(14)
@@ -326,12 +325,22 @@ class TopicDelegate(QStyledItemDelegate):
         painter.setFont(name_font)
         painter.setPen(QColor(C["green_dark"] if selected else (C["faint"] if archived else C["ink"])))
         fm = QFontMetrics(name_font)
-        name = fm.elidedText(topic.name, Qt.ElideRight, r.width() - 46)
+        locked = bool(getattr(topic, "locked", False))
+        name = fm.elidedText(topic.name, Qt.ElideRight, r.width() - 46 - (15 if locked else 0))
         painter.drawText(
             QRect(r.left() + 10, r.top(), r.width() - 46, r.height()),
             Qt.AlignLeft | Qt.AlignVCenter | Qt.TextSingleLine,
             name,
         )
+        if locked:
+            # 自绘小锁（用 emoji 会渲染成彩色，破坏黑白灰）
+            x = r.left() + 10 + fm.width(name) + 5
+            cy = r.center().y()
+            painter.setPen(QPen(QColor(C["faint"]), 1.1))
+            painter.setBrush(Qt.NoBrush)
+            painter.drawArc(QRectF(x + 1.8, cy - 7, 5.4, 8), 0, 180 * 16)
+            painter.setBrush(QColor(C["faint"]))
+            painter.drawRoundedRect(QRectF(x, cy - 0.5, 9, 7), 1.6, 1.6)
 
         if cnt:
             meta = QFont(option.font)

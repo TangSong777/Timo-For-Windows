@@ -485,11 +485,17 @@ class MainWindow(QMainWindow):
         a_new = menu.addAction("在此主题新建笔记")
         menu.addSeparator()
         a_rename = menu.addAction("重命名主题…")
+        a_lock = menu.addAction("解除锁定" if topic.locked else "锁定主题")
         a_delete = menu.addAction("删除主题")
         act = menu.exec_(self.topic_list.mapToGlobal(pos))
         if act is a_new:
             self.new_note()
+        elif act is a_lock:
+            self.toggle_topic_lock(topic)
         elif act is a_rename:
+            if topic.locked:
+                info(self, "主题已锁定", f"「{topic.name}」已锁定，先解除锁定再改名。")
+                return
             from .dialogs import InputDialog
 
             dlg = InputDialog(self, "重命名主题", "主题名称", text=topic.name)
@@ -504,7 +510,10 @@ class MainWindow(QMainWindow):
                 if self.view == ("topic", topic.id):
                     self._reload_notes()
         elif act is a_delete:
-            cnt = self.lib.note_counts().get(topic.id, 0)
+            if topic.locked:
+                info(self, "主题已锁定", f"「{topic.name}」已锁定，先解除锁定再删除。")
+                return
+            cnt = (self.lib.note_counts("archived") if topic.state == "archived" else self.lib.note_counts()).get(topic.id, 0)
             if cnt:
                 if not confirm(
                     self,
@@ -1149,6 +1158,13 @@ class MainWindow(QMainWindow):
         self.lib.save()
         self.refresh_topics()
         self._reload_notes(animate=True)
+
+    def toggle_topic_lock(self, topic):
+        """锁定后主题不能改名、不能删除，避免手滑。"""
+        topic.locked = not topic.locked
+        self.lib.save()
+        self.refresh_topics()
+        self._toast("已锁定主题" if topic.locked else "已解除锁定")
 
     def clean_attachments(self):
         """删掉 attachments/ 里没有任何笔记引用的图片（粘贴后又删掉文字常会留下）。"""
