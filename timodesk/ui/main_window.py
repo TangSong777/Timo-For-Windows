@@ -667,7 +667,6 @@ class MainWindow(QMainWindow):
         if len(ids) < 2:
             return
         self.lib.reorder_topics(ids)
-        self._toast("主题顺序已保存")
 
     def _on_notes_dropped(self, note_ids, topic_id: str):
         """把笔记（可多选）拖到左侧主题上：批量移动到该主题。"""
