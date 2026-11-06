@@ -37,7 +37,10 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from ..exporter import export_zip
+import re
+import shutil
+
+from ..exporter import export_zip, note_markdown
 from ..settings import Settings
 from ..importer import import_export
 from ..store import NOTE_TYPES, TYPE_LABELS, Library, Note
@@ -595,6 +598,8 @@ class MainWindow(QMainWindow):
                 act = move_menu.addAction(t.name)
                 act.setData(t.id)
         a_dup = menu.addAction("复制笔记")
+        a_copy_md = menu.addAction("复制为 Markdown")
+        a_export_md = menu.addAction("导出为 Markdown…")
         menu.addSeparator()
         a_del = a_restore = None
         if note.state == "trash":
@@ -610,6 +615,11 @@ class MainWindow(QMainWindow):
             n = self.lib.add_note(note.topic_id, note.type, self.lib.content(nid), note.title)
             n.url, n.account, n.password, n.remark = note.url, note.account, note.password, note.remark
             n.date, n.images, n.description = note.date, list(note.images), note.description
+        elif act is a_copy_md:
+            QApplication.clipboard().setText(note_markdown(note, self.lib.content(nid)))
+            self._toast("已复制 Markdown")
+        elif act is a_export_md:
+            self._export_markdown(note)
         elif act is a_del:
             self.lib.delete_note(nid)
         elif act is a_restore:
@@ -948,6 +958,41 @@ class MainWindow(QMainWindow):
         from PyQt5.QtCore import QUrl
 
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.lib.root)))
+
+    def _toast(self, text: str, ms: int = 1600):
+        """底部小提示（状态栏默认隐藏，这里临时显示一下）。"""
+        self.statusBar().show()
+        self.statusBar().showMessage(text, ms)
+        QTimer.singleShot(ms + 100, self.statusBar().hide)
+
+    def _export_markdown(self, note: Note):
+        content = self.lib.content(note.id)
+        md = note_markdown(note, content)
+        # 导出包用 ../../../attachments/，单独导出时改成相对当前目录
+        md = md.replace("../../../attachments/", "attachments/")
+        t = self.lib.topics.get(note.topic_id)
+        title = note.display_title(content, t.name if t else "")
+        safe = re.sub(r'[\\/:*?"<>|]', "_", title).strip()[:60] or "未命名"
+        path, _ = QFileDialog.getSaveFileName(self, "导出为 Markdown", f"{safe}.md", "Markdown (*.md)")
+        if not path:
+            return
+        p = Path(path)
+        try:
+            p.write_text(md, encoding="utf-8")
+            copied = 0
+            for rel in sorted(set(re.findall(r"\]\((attachments/[^)\s]+)\)", md))):
+                name = rel.split("/", 1)[1]
+                src = self.lib.attachment_abspath(name)
+                if src and Path(src).exists():
+                    dst = p.parent / rel
+                    dst.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(src, dst)
+                    copied += 1
+        except OSError as e:
+            error(self, "导出失败", f"写入文件时出错：\n{e}")
+            return
+        extra = f"，图片 {copied} 张" if copied else ""
+        info(self, "已导出", f"已保存到\n{p}{extra}")
 
     def set_sort(self, mode: str):
         if mode == getattr(self, "sort_mode", "updated"):

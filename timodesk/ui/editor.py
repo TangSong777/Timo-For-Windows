@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 from pathlib import Path
 
 from PyQt5.QtCore import (
@@ -32,6 +33,7 @@ from PyQt5.QtGui import (
     QTextDocument,
 )
 from PyQt5.QtWidgets import (
+    QApplication,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -58,6 +60,7 @@ from PyQt5.QtWidgets import (
 
 from ..render import TASK_RE, render
 from ..store import TYPE_LABELS, Library, Note
+from .dialogs import error as dlg_error
 from .theme import C, NOTE_COLORS, color_icon
 from .widgets import AutoFadeScrollBar
 from .widgets import human_time
@@ -920,10 +923,17 @@ class NoteEditor(QWidget):
             return
         menu = QMenu(self)
         a_view = menu.addAction("查看大图")
+        a_save = menu.addAction("图片另存为…")
+        a_copy = menu.addAction("复制图片")
+        menu.addSeparator()
         a_remove = menu.addAction("移除这张图片")
         act = menu.exec_(self.wall.mapToGlobal(pos))
         if act is a_view:
             self._open_viewer(item)
+        elif act is a_save:
+            self._save_image(item)
+        elif act is a_copy:
+            self._copy_image(item)
         elif act is a_remove:
             rel = self._rel_of(item)
             if rel and rel in self.note.images:
@@ -931,6 +941,28 @@ class NoteEditor(QWidget):
                 self.lib.save()
             self._reload_wall()
             self.metaChanged.emit()
+
+    def _save_image(self, item: QListWidgetItem):
+        src = item.data(Qt.UserRole)
+        if not src:
+            return
+        src = Path(src)
+        out, _ = QFileDialog.getSaveFileName(self, "图片另存为", src.name, "图片 (*.png *.jpg *.jpeg *.webp *.gif *.bmp)")
+        if not out:
+            return
+        try:
+            shutil.copy2(src, out)
+        except OSError as e:
+            dlg_error(self, "保存失败", f"写入图片时出错：\n{e}")
+
+    def _copy_image(self, item: QListWidgetItem):
+        src = item.data(Qt.UserRole)
+        if not src:
+            return
+        img = QImage(src)
+        if img.isNull():
+            return
+        QApplication.clipboard().setImage(img)
 
     def _rel_of(self, item: QListWidgetItem) -> str | None:
         p = item.data(Qt.UserRole)
