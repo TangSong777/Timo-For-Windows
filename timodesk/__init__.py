@@ -1,2 +1,2 @@
 """Timo 桌面版：Windows 本地笔记软件。"""
-__version__ = "0.3.0"
+__version__ = "0.4.0"
