@@ -154,6 +154,10 @@ class ReminderDialog(FramelessDialog):
         from PyQt5.QtCore import QDate, QTime
         from PyQt5.QtWidgets import QDateEdit, QHBoxLayout, QLabel, QPushButton, QTimeEdit
 
+        if isinstance(when, str):  # 兼容直接传 ISO 字符串
+            from ..store import from_iso
+
+            when = from_iso(when)
         base = when or (datetime.now() + timedelta(hours=1))
         self.cleared = False
         self.result_when: datetime | None = None
