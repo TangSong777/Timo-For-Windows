@@ -33,6 +33,7 @@ from PyQt5.QtWidgets import (
     QShortcut,
     QSystemTrayIcon,
     QToolButton,
+    QToolTip,
     QVBoxLayout,
     QWidget,
 )
@@ -960,10 +961,8 @@ class MainWindow(QMainWindow):
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.lib.root)))
 
     def _toast(self, text: str, ms: int = 1600):
-        """底部小提示（状态栏默认隐藏，这里临时显示一下）。"""
-        self.statusBar().show()
-        self.statusBar().showMessage(text, ms)
-        QTimer.singleShot(ms + 100, self.statusBar().hide)
+        """不改变布局的小提示：贴着鼠标弹一个 tooltip。"""
+        QToolTip.showText(QCursor.pos(), text, self)
 
     def _export_markdown(self, note: Note):
         content = self.lib.content(note.id)
