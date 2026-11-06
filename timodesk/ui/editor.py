@@ -557,6 +557,8 @@ class NoteEditor(QWidget):
             self.stack.setCurrentWidget(self.page_empty)
             self.title_wrap.setVisible(False)
             self.top_bar.setVisible(False)
+            self.word_label.setText("")
+            self.time_label.setText("")
             self._loading = False
             return
 

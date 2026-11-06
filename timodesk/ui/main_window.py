@@ -481,6 +481,7 @@ class MainWindow(QMainWindow):
             self.note_list.blockSignals(True)
             self.note_list.setCurrentRow(-1)
             self.note_list.blockSignals(False)
+            self.note_list.scrollToTop()
             self.editor.set_note(None)
 
         if animate and notes:
