@@ -5,7 +5,7 @@ import os
 import sys
 from pathlib import Path
 
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QIcon
 from PyQt5.QtWidgets import (
     QApplication,
@@ -13,17 +13,16 @@ from PyQt5.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
     QLabel,
-    QMessageBox,
-    QProgressDialog,
     QPushButton,
     QVBoxLayout,
-    QWidget,
 )
 
 from .importer import import_export
 from .store import Library
 from .ui.main_window import MainWindow
 from .ui.theme import app_qss
+from .ui.title_bar import FramelessDialog
+from .ui.dialogs import ProgressDialog, error, info
 
 from . import __version__
 
@@ -52,18 +51,18 @@ def data_dir() -> Path:
         return alt
 
 
-class WelcomeDialog(QDialog):
+class WelcomeDialog(FramelessDialog):
     """首次启动：导入 Timo 导出包，或从空库开始。"""
 
     def __init__(self, parent=None):
-        super().__init__(parent)
+        super().__init__(parent, "欢迎使用 Timo 桌面版")
         self.choice = "cancel"
         self.path: str | None = None
         self.setWindowTitle("欢迎使用 Timo 桌面版")
-        self.setFixedSize(560, 420)
+        self.setFixedSize(560, 462)
         self.setStyleSheet(
             f"""
-            QDialog {{ background:#ffffff; }}
+            #DialogBody {{ background:#ffffff; }}
             QLabel#Big {{ font-size:30px; color:#1f1f1f; font-weight:600; }}
             QLabel#Sub {{ color:#737373; font-size:13px; }}
             QPushButton#Primary {{
@@ -78,8 +77,8 @@ class WelcomeDialog(QDialog):
             QPushButton#Plain:hover {{ border-color:#1f1f1f; }}
             """
         )
-        lay = QVBoxLayout(self)
-        lay.setContentsMargins(40, 36, 40, 30)
+        lay = QVBoxLayout(self.body)
+        lay.setContentsMargins(40, 28, 40, 30)
         lay.setSpacing(10)
         title = QLabel("Timo", objectName="Big")
         lay.addWidget(title)
@@ -121,6 +120,7 @@ class WelcomeDialog(QDialog):
         ico = base_dir() / "assets" / "timo-icon.png"
         if ico.exists():
             self.setWindowIcon(QIcon(str(ico)))
+        self.add_edge()
 
     def _pick_zip(self):
         p, _ = QFileDialog.getOpenFileName(self, "选择 Timo 导出包", "", "Timo 导出 (*.zip);;所有文件 (*)")
@@ -140,30 +140,27 @@ class WelcomeDialog(QDialog):
 
 
 def _import_with_progress(lib: Library, path: str) -> bool:
-    pr = QProgressDialog("正在导入，请稍候…", None, 0, 100)
-    pr.setWindowTitle("导入 Timo 数据")
-    pr.setWindowModality(Qt.WindowModal)
-    pr.setMinimumDuration(0)
+    pr = ProgressDialog(None, "导入 Timo 数据", "正在导入，请稍候…")
     pr.show()
+    QApplication.processEvents()
 
     def pg(done, total):
-        pr.setMaximum(total)
-        pr.setValue(done)
+        pr.set_progress(done, total)
         QApplication.processEvents()
 
     try:
         report = import_export(path, lib, progress=pg)
         lib.save()
-        QMessageBox.information(
+        pr.close()
+        info(
             None,
             "导入完成",
             f"主题 {report.topics} 个、笔记 {report.notes} 条、附件 {report.attachments} 个。",
         )
     except Exception as e:  # noqa: BLE001
         pr.close()
-        QMessageBox.critical(None, "导入失败", str(e))
+        error(None, "导入失败", str(e))
         return False
-    pr.close()
     return True
 
 

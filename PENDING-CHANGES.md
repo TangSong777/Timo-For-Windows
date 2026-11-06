@@ -23,3 +23,11 @@
 - **文件**：`timodesk/ui/title_bar.py`（新增）、`timodesk/ui/main_window.py`、`timodesk/ui/theme.py`
 - **验证**：`test_core.py` 13/13；圆角遮罩（角落不在 mask、6px 在内）、八向命中码、最大化铺满可用区且还原后恢复遮罩，均截图核对
 - **影响**：主窗口外观全部自绘；数据与笔记功能未改动
+
+## 2026-11-06 — 自绘对话框
+
+- **类型**：界面
+- **内容**：欢迎页、消息框、确认框、导入进度框全部改为无边框自绘（统一标题条 + 圆角 + 描边），不再调用 `QMessageBox` / `QProgressDialog`
+- **文件**：`timodesk/ui/dialogs.py`（新增）、`timodesk/app.py`、`timodesk/ui/main_window.py`、`docs/screenshot-*.png`
+- **验证**：欢迎页 / 消息框 / 进度框三处截图核对；`test_core.py` 13/13；打包 exe 空库启动显示无边框欢迎页
+- **影响**：全应用不再出现系统标题栏；文档截图同步更新

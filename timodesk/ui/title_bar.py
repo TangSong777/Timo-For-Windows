@@ -18,7 +18,7 @@ from PyQt5.QtGui import (
     QPen,
     QRegion,
 )
-from PyQt5.QtWidgets import QHBoxLayout, QLabel, QToolButton, QWidget
+from PyQt5.QtWidgets import QDialog, QHBoxLayout, QLabel, QToolButton, QVBoxLayout, QWidget
 
 from .theme import C
 
@@ -203,3 +203,91 @@ class TitleBar(QWidget):
     def mouseDoubleClickEvent(self, ev):
         if ev.button() == Qt.LeftButton:
             self.win.toggle_maximized()
+
+
+class DialogTitleBar(QWidget):
+    """无边框对话框的顶部条：标题 + 关闭，可拖动。"""
+
+    HEIGHT = 40
+
+    def __init__(self, dialog, text: str):
+        super().__init__(dialog)
+        self.dlg = dialog
+        self._press: QPoint | None = None
+        self.setObjectName("DialogTitleBar")
+        self.setFixedHeight(self.HEIGHT)
+        self.setStyleSheet(f"""
+            QWidget#DialogTitleBar {{
+                background: {C['card']};
+                border-bottom: 1px solid {C['line_soft']};
+                border-top-left-radius: 12px;
+                border-top-right-radius: 12px;
+            }}
+            QLabel#DialogTitle {{
+                color: {C['ink_soft']};
+                font-size: 12px;
+                font-weight: 600;
+            }}
+            QToolButton#DialogClose {{
+                border: none; background: transparent; color: {C['muted']};
+                border-radius: 6px; font-size: 12px;
+            }}
+            QToolButton#DialogClose:hover {{ background: #e81123; color: #ffffff; }}
+        """)
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(16, 0, 10, 0)
+        lay.setSpacing(6)
+        lay.addWidget(QLabel(text, objectName="DialogTitle"))
+        lay.addStretch(1)
+        self.btn_close = QToolButton(objectName="DialogClose")
+        self.btn_close.setText("✕")
+        self.btn_close.setFixedSize(30, 24)
+        self.btn_close.setCursor(Qt.ArrowCursor)
+        self.btn_close.clicked.connect(self.dlg.reject)
+        lay.addWidget(self.btn_close)
+
+    def mousePressEvent(self, ev):
+        if ev.button() == Qt.LeftButton:
+            self._press = ev.globalPos() - self.dlg.frameGeometry().topLeft()
+
+    def mouseMoveEvent(self, ev):
+        if self._press is not None and ev.buttons() & Qt.LeftButton:
+            self.dlg.move(ev.globalPos() - self._press)
+
+    def mouseReleaseEvent(self, ev):
+        self._press = None
+
+
+class FramelessDialog(QDialog):
+    """无边框对话框：自绘标题条 + 圆角 + 描边，内容放进 body。"""
+
+    RADIUS = 12
+
+    def __init__(self, parent=None, title: str = ""):
+        super().__init__(parent)
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
+        self._bar = DialogTitleBar(self, title)
+        self.body = QWidget(objectName="DialogBody")
+        self.body.setStyleSheet(f"#DialogBody {{ background: {C['card']}; }}")
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+        outer.addWidget(self._bar)
+        outer.addWidget(self.body, 1)
+
+    def add_edge(self):
+        self._edge = FrameEdge(self)
+        self._edge.setGeometry(self.rect())
+        self._edge.raise_()
+
+    def resizeEvent(self, ev):  # noqa: N802
+        super().resizeEvent(ev)
+        self.setMask(rounded_mask(self.width(), self.height(), self.RADIUS))
+        edge = getattr(self, "_edge", None)
+        if edge is not None:
+            edge.setGeometry(self.rect())
+            edge.raise_()
+
+    def showEvent(self, ev):  # noqa: N802
+        super().showEvent(ev)
+        self.setMask(rounded_mask(self.width(), self.height(), self.RADIUS))

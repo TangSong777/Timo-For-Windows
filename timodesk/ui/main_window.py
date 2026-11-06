@@ -17,8 +17,6 @@ from PyQt5.QtWidgets import (
     QListWidgetItem,
     QMainWindow,
     QMenu,
-    QMessageBox,
-    QProgressDialog,
     QPushButton,
     QShortcut,
     QToolButton,
@@ -29,6 +27,7 @@ from PyQt5.QtWidgets import (
 from ..exporter import export_zip
 from ..importer import import_export
 from ..store import Library, Note
+from .dialogs import ProgressDialog, confirm, error, info
 from .editor import NoteEditor
 from .theme import C, NOTE_COLORS
 from .title_bar import (
@@ -287,12 +286,11 @@ class MainWindow(QMainWindow):
         elif act is a_delete:
             cnt = self.lib.note_counts().get(topic.id, 0)
             if cnt:
-                ret = QMessageBox.question(
+                if not confirm(
                     self,
                     "删除主题",
                     f"「{topic.name}」里还有 {cnt} 条笔记，删除主题会把它们一起移到回收站。继续？",
-                )
-                if ret != QMessageBox.Yes:
+                ):
                     return
             self.lib.delete_topic(topic.id)
             self.lib.save()
@@ -518,23 +516,20 @@ class MainWindow(QMainWindow):
 
     def _do_import(self, path: str):
         if self.lib.notes:
-            ret = QMessageBox.question(
+            if not confirm(
                 self,
                 "导入数据",
                 "导入会用包里的内容替换当前库（现有笔记会先备份到 backup 目录）。继续？",
-            )
-            if ret != QMessageBox.Yes:
+            ):
                 return
-        dlg = QProgressDialog("正在导入…", "取消", 0, 100, self)
-        dlg.setWindowTitle("导入 Timo 数据")
-        dlg.setWindowModality(Qt.WindowModal)
-        dlg.setMinimumDuration(300)
+        dlg = ProgressDialog(self, "导入 Timo 数据", "正在导入…")
+        dlg.show()
+        QApplication.processEvents()
 
         def progress(done: int, total: int):
-            dlg.setMaximum(total)
-            dlg.setValue(done)
+            dlg.set_progress(done, total)
             QApplication.processEvents()
-            if dlg.wasCanceled():
+            if dlg.was_canceled():
                 raise RuntimeError("用户取消")
 
         try:
@@ -543,7 +538,7 @@ class MainWindow(QMainWindow):
             self.lib.save()
         except Exception as e:  # noqa: BLE001
             dlg.close()
-            QMessageBox.critical(self, "导入失败", f"{e}")
+            error(self, "导入失败", f"{e}")
             return
         dlg.close()
         self.refresh_topics()
@@ -555,7 +550,7 @@ class MainWindow(QMainWindow):
             msg += "\n" + "\n".join(report.warnings[:5])
         if backup:
             msg += f"\n原数据已备份到：{backup}"
-        QMessageBox.information(self, "导入完成", msg)
+        info(self, "导入完成", msg)
 
     def _backup_current(self) -> Path | None:
         if not self.lib.notes:
@@ -583,9 +578,9 @@ class MainWindow(QMainWindow):
         try:
             out, counts = export_zip(self.lib, path)
         except Exception as e:  # noqa: BLE001
-            QMessageBox.critical(self, "导出失败", str(e))
+            error(self, "导出失败", str(e))
             return
-        QMessageBox.information(
+        info(
             self,
             "导出完成",
             f"已导出到：\n{out}\n\n{counts['topics']} 个主题、{counts['documents']} 条笔记、{counts['attachments']} 个附件。",
@@ -600,7 +595,7 @@ class MainWindow(QMainWindow):
     def show_about(self):
         from timodesk import __version__
 
-        QMessageBox.about(
+        info(
             self,
             "关于 Timo 桌面版",
             f"<h3>Timo 桌面版 {__version__}</h3>"
