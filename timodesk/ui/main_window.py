@@ -23,7 +23,6 @@ from PyQt5.QtWidgets import (
     QFrame,
     QGraphicsOpacityEffect,
     QHBoxLayout,
-    QInputDialog,
     QLabel,
     QLineEdit,
     QListView,
@@ -469,9 +468,12 @@ class MainWindow(QMainWindow):
         if act is a_new:
             self.new_note()
         elif act is a_rename:
-            name, ok = QInputDialog.getText(self, "重命名主题", "主题名称：", text=topic.name)
-            if ok and name.strip():
-                self.lib.rename_topic(topic.id, name.strip())
+            from .dialogs import InputDialog
+
+            dlg = InputDialog(self, "重命名主题", "主题名称", text=topic.name)
+            name = dlg.value if dlg.exec_() else None
+            if name:
+                self.lib.rename_topic(topic.id, name)
                 self.lib.save()
                 self.refresh_topics()
                 if self.view == ("topic", topic.id):
@@ -491,10 +493,13 @@ class MainWindow(QMainWindow):
             self.select_nav("all")
 
     def new_topic(self):
-        name, ok = QInputDialog.getText(self, "新建主题", "主题名称：")
-        if not ok or not name.strip():
+        from .dialogs import InputDialog
+
+        dlg = InputDialog(self, "新建主题", "主题名称", placeholder="比如：日记、工作、读书")
+        name = dlg.value if dlg.exec_() else None
+        if not name:
             return
-        t = self.lib.add_topic(name.strip())
+        t = self.lib.add_topic(name)
         self.lib.save()
         self.refresh_topics()
         for i in range(self.topic_list.count()):

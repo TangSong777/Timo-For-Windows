@@ -233,6 +233,13 @@ QListWidget#Wall::item:selected {{ background: {C['wall_sel']}; }}
 #ListHeader {{ font-size: {int(18 * s)}px; font-weight: 600; color: {C['ink']}; letter-spacing: 0.2px; }}
 #CountLabel {{ color: {C['faint']}; font-size: {int(11 * s)}px; }}
 
+QLineEdit {{
+    background: {C['card']}; border: 1px solid {C['card_border']}; border-radius: 8px;
+    padding: 8px 11px; color: {C['ink']};
+    selection-background-color: {C['ink']}; selection-color: {C['on_ink']};
+}}
+QLineEdit:focus {{ border: 1px solid {C['ink']}; }}
+
 QLineEdit#Search {{
     background: {C['input_bg']}; border: 1px solid transparent; border-radius: 12px;
     padding: 9px 14px; selection-background-color: {C['ink']}; selection-color: {C['on_ink']};
@@ -248,6 +255,7 @@ QFrame#FindBar QLineEdit:focus {{ border: 1px solid {C['ink']}; }}
 QFrame#FindBar QToolButton {{ border: none; border-radius: 6px; padding: 3px 6px; color: {C['muted']}; }}
 QFrame#FindBar QToolButton:hover {{ background: {C['hover_bg']}; color: {C['ink']}; }}
 #FindCount {{ color: {C['muted']}; font-size: {int(11 * s)}px; }}
+QLabel#FieldLabel {{ color: {C['muted']}; font-size: {int(12 * s)}px; }}
 
 #ListEmpty {{ color: {C['faint']}; font-size: {int(12 * s)}px; line-height:1.6; }}
 QListWidget#NoteList {{ background: {C['card']}; border: none; padding: 4px 2px; }}

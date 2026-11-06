@@ -7,6 +7,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QProgressBar,
     QPushButton,
     QSizePolicy,
@@ -234,6 +235,51 @@ class ReminderDialog(FramelessDialog):
     def _clear(self):
         self.cleared = True
         self.result_when = None
+        self.accept()
+
+
+class InputDialog(FramelessDialog):
+    """自绘的单行输入框，用于新建/重命名主题。"""
+
+    def __init__(self, parent, title: str, label: str, text: str = "", placeholder: str = ""):
+        super().__init__(parent, title)
+        self.value = None
+        lay = QVBoxLayout(self.body)
+        lay.setContentsMargins(24, 18, 24, 18)
+        lay.setSpacing(10)
+
+        lab = QLabel(label, objectName="FieldLabel")
+        lay.addWidget(lab)
+
+        self.edit = QLineEdit()
+        self.edit.setText(text)
+        self.edit.selectAll()
+        if placeholder:
+            self.edit.setPlaceholderText(placeholder)
+        self.edit.returnPressed.connect(self._ok)
+        lay.addWidget(self.edit)
+
+        row = QHBoxLayout()
+        row.addStretch(1)
+        b_cancel = QPushButton("取消", objectName="Plain")
+        b_cancel.clicked.connect(self.reject)
+        b_ok = QPushButton("确定", objectName="Primary")
+        b_ok.setDefault(True)
+        b_ok.clicked.connect(self._ok)
+        row.addWidget(b_cancel)
+        row.addWidget(b_ok)
+        lay.addLayout(row)
+
+        self.setMinimumWidth(420)
+        self.adjustSize()
+        self.add_edge()
+        self.edit.setFocus()
+
+    def _ok(self):
+        text = self.edit.text().strip()
+        if not text:
+            return
+        self.value = text
         self.accept()
 
 
