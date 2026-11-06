@@ -876,7 +876,7 @@ class NoteEditor(QWidget):
         self.btn_pin.blockSignals(True)
         self.btn_pin.setChecked(bool(note.pinned_at))
         self.btn_pin.blockSignals(False)
-        self.save_state.setText("")
+        self._apply_readonly(note.state == "trash")
         self._dirty = False
         self._update_meta_labels()
         self._loading = False
@@ -1419,6 +1419,14 @@ class NoteEditor(QWidget):
         if hasattr(self, "wall"):
             self.wall.viewport().update()
         self.update()
+
+    def _apply_readonly(self, ro: bool):
+        """回收站里的笔记只读——想改先恢复出来。"""
+        self._readonly = ro
+        for w in self.findChildren(QWidget):
+            if isinstance(w, (QLineEdit, QPlainTextEdit)):
+                w.setReadOnly(ro)
+        self.save_state.setText("回收站 · 只读" if ro else "")
 
     def mark_saved(self):
         self._dirty = False
