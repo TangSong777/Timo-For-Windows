@@ -207,12 +207,12 @@ class MainWindow(QMainWindow):
         self.topic_list.setVerticalScrollBar(AutoFadeScrollBar(Qt.Vertical, self.topic_list))
         self.topic_list.setItemDelegate(TopicDelegate(self.lib, self))
         self.topic_list.setFrameShape(QListWidget.NoFrame)
-        self.topic_list.setDragDropMode(QListWidget.InternalMove)
         self.topic_list.setDefaultDropAction(Qt.MoveAction)
         self.topic_list.setContextMenuPolicy(Qt.CustomContextMenu)
         self.topic_list.customContextMenuRequested.connect(self._topic_menu)
         self.topic_list.currentRowChanged.connect(self._on_topic_changed)
         self.topic_list.notesDropped.connect(self._on_notes_dropped)
+        self.topic_list.topicsReordered.connect(self._on_topics_reordered)
         sb.addWidget(self.topic_list, 1)
 
         sb.addSpacing(4)
@@ -654,6 +654,20 @@ class MainWindow(QMainWindow):
         self.refresh_topics()
         self._reload_notes(animate=True)
         self._toast(f"已移到回收站（{len(ids)} 条）")
+
+    def _on_topics_reordered(self):
+        """主题拖动排序后，按界面顺序写回 order 并保存。"""
+        ids = []
+        for i in range(self.topic_list.count()):
+            it = self.topic_list.item(i)
+            topic = it.data(Qt.UserRole) if it else None
+            tid = getattr(topic, "id", None)
+            if tid:
+                ids.append(tid)
+        if len(ids) < 2:
+            return
+        self.lib.reorder_topics(ids)
+        self._toast("主题顺序已保存")
 
     def _on_notes_dropped(self, note_ids, topic_id: str):
         """把笔记（可多选）拖到左侧主题上：批量移动到该主题。"""

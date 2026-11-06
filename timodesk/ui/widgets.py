@@ -331,15 +331,34 @@ class NoteList(QListWidget):
 
 
 class TopicList(QListWidget):
-    """主题列表：内部可拖动排序，也接受从笔记列表拖来的笔记。"""
+    """主题列表：内部可拖动排序，也接受从笔记列表拖来的笔记。
+
+    内部排序不走 Qt 默认的 InternalMove —— 那套会序列化 item 数据，
+    Python 对象（Topic）存不进 mime，拖完 data(UserRole) 就丢了。
+    这里自己 takeItem / insertItem，原对象原样搬运。
+    """
 
     notesDropped = pyqtSignal(list, str)
+    topicsReordered = pyqtSignal()
+
+    def __init__(self, parent=None, **kwargs):
+        super().__init__(parent, **kwargs)
+        self.setDragDropMode(QListWidget.DragDrop)
+        self.setDefaultDropAction(Qt.MoveAction)
+        self._drag_row = -1
+
+    def startDrag(self, actions):  # noqa: N802
+        self._drag_row = self.currentRow()
+        super().startDrag(actions)
 
     def _is_note(self, e) -> bool:
         return e.mimeData().hasFormat(NoteList.MIME)
 
+    def _is_self_drag(self, e) -> bool:
+        return e.source() is self and self._drag_row >= 0
+
     def dragEnterEvent(self, e):  # noqa: N802
-        if self._is_note(e):
+        if self._is_note(e) or self._is_self_drag(e):
             e.acceptProposedAction()
             return
         super().dragEnterEvent(e)
@@ -348,9 +367,32 @@ class TopicList(QListWidget):
         if self._is_note(e):
             e.acceptProposedAction()
             return
+        if self._is_self_drag(e):
+            e.acceptProposedAction()
+            return
         super().dragMoveEvent(e)
 
+    def _move_row(self, e) -> None:
+        src = self._drag_row
+        row = self.indexAt(e.pos()).row()
+        if row < 0:
+            row = self.count()
+        if src < 0 or row == src or row == src + 1:
+            return
+        item = self.takeItem(src)
+        if item is None:
+            return
+        if row > src:
+            row -= 1
+        self.insertItem(row, item)
+        self.setCurrentRow(row)
+        self.topicsReordered.emit()
+
     def dropEvent(self, e):  # noqa: N802
+        if self._is_self_drag(e) and not self._is_note(e):
+            e.acceptProposedAction()
+            self._move_row(e)
+            return
         if not self._is_note(e):
             super().dropEvent(e)
             return
