@@ -310,7 +310,7 @@ class MainWindow(QMainWindow):
         self.search = QLineEdit(objectName="Search")
         esc_search = QShortcut(QKeySequence("Escape"), self.search)
         esc_search.setContext(Qt.WidgetShortcut)
-        esc_search.activated.connect(self._clear_search)
+        esc_search.activated.connect(lambda: self._clear_search(focus=True))
         self.search.setPlaceholderText("搜索笔记…  Ctrl+F")
         self.search.addAction(_search_icon(), QLineEdit.LeadingPosition)
         self.search.setTextMargins(4, 0, 0, 0)
@@ -434,10 +434,23 @@ class MainWindow(QMainWindow):
         row = {"all": 0, "archived": 1, "trash": 2}.get(kind, 0)
         self.nav.setCurrentRow(row)
 
+    def _clear_search(self, focus: bool = False):
+        """清掉搜索词（切换视图或按 Esc），免得列表停在上一轮的搜索结果里。"""
+        self._search_buf = ""
+        if self.search.text():
+            self.search.blockSignals(True)
+            self.search.clear()
+            self.search.blockSignals(False)
+        if focus:
+            self.note_list.setFocus()
+
     def _on_nav_changed(self, row: int):
         kind = {0: "all", 1: "archived", 2: "trash"}.get(row, "all")
+        self._clear_search()
+        self.topic_list.blockSignals(True)
         self.topic_list.clearSelection()
         self.topic_list.setCurrentRow(-1)
+        self.topic_list.blockSignals(False)
         self.view = (kind, None)
         self._reload_notes(animate=True)
 
@@ -448,6 +461,7 @@ class MainWindow(QMainWindow):
         if not it:
             return
         topic = it.data(Qt.UserRole)
+        self._clear_search()
         self.nav.blockSignals(True)
         self.nav.setCurrentRow(-1)
         self.nav.blockSignals(False)
@@ -1122,11 +1136,6 @@ class MainWindow(QMainWindow):
         from PyQt5.QtCore import QUrl
 
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.lib.root)))
-
-    def _clear_search(self):
-        if self.search.text():
-            self.search.clear()
-        self.note_list.setFocus()
 
     def _toast(self, text: str, ms: int = 1600):
         """不改变布局的小提示：贴着鼠标弹一个 tooltip。"""
