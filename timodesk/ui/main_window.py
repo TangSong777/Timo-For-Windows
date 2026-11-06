@@ -38,6 +38,7 @@ from PyQt5.QtWidgets import (
 )
 
 from ..exporter import export_zip
+from ..settings import Settings
 from ..importer import import_export
 from ..store import NOTE_TYPES, TYPE_LABELS, Library, Note
 from .dialogs import ProgressDialog, confirm, error, info
@@ -106,6 +107,7 @@ class MainWindow(QMainWindow):
         self.resize(1280, 830)
         self.setMinimumSize(980, 620)
         self.tray = None
+        self.settings = Settings(self.lib.root)
         self._quitting = False
         self._tray_hinted = False
         self._build_ui()
@@ -200,6 +202,7 @@ class MainWindow(QMainWindow):
         menu.addSeparator()
         menu.addAction("导出为 Timo ZIP…", self.export_zip)
         menu.addAction("打开数据目录", self.open_data_dir)
+        menu.addAction("应用锁…", self.lock_settings)
         menu.addSeparator()
         menu.addAction("清空回收站…", self.empty_trash)
         menu.addSeparator()
@@ -822,6 +825,17 @@ class MainWindow(QMainWindow):
             "导出完成",
             f"已导出到：\n{out}\n\n{counts['topics']} 个主题、{counts['documents']} 条笔记、{counts['attachments']} 个附件。",
         )
+
+    def lock_settings(self):
+        from .dialogs import LockDialog, info
+
+        d = LockDialog(self, self.settings)
+        if not d.exec_() or not d.changed:
+            return
+        if self.settings.lock_enabled():
+            info(self, "应用锁", "已设置密码，下次启动时需要输入。")
+        else:
+            info(self, "应用锁", "已关闭应用锁。")
 
     def open_data_dir(self):
         from PyQt5.QtGui import QDesktopServices

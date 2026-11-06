@@ -18,6 +18,7 @@ from PyQt5.QtWidgets import (
 )
 
 from .importer import import_export
+from .settings import Settings
 from .store import Library
 from .ui.main_window import MainWindow
 from .ui.theme import app_qss
@@ -233,6 +234,13 @@ def run():
     # 尽早开始，避免被欢迎对话框等模态窗口挡住
     _schedule_delete(delete_targets)
 
+    settings = Settings(root)
+    if settings.lock_enabled():
+        from .ui.dialogs import UnlockDialog
+
+        if UnlockDialog(None, settings).exec_() != QDialog.Accepted:
+            return 0
+
     lib = Library(root).load()
 
     cli = next((a for a in args if a and Path(a).exists()), "")
@@ -248,6 +256,7 @@ def run():
                 return 1
 
     win = MainWindow(lib)
+    win.settings = settings
     tray = TrayIcon(win)
     win.tray = tray
     tray.show()
