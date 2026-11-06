@@ -236,6 +236,7 @@ class MainWindow(QMainWindow):
         menu.addSeparator()
         menu.addAction("清空回收站…", self.empty_trash)
         menu.addAction("清理未使用的图片…", self.clean_attachments)
+        menu.addAction("检查数据完整性…", self.audit_data)
         menu.addSeparator()
         appearance = menu.addMenu("外观")
         grp = QActionGroup(self)
@@ -1208,6 +1209,35 @@ class MainWindow(QMainWindow):
         self.lib.save()
         self.refresh_topics()
         self._toast("已锁定主题" if topic.locked else "已解除锁定")
+
+    def audit_data(self):
+        """看看正文文件、附件跟 library.json 对不对得上。"""
+        r = self.lib.audit()
+        lines = [f"共 {r['notes']} 条笔记、{r['attachments']} 个附件文件。"]
+        problems = False
+        if r["missing_md"]:
+            problems = True
+            lines.append(f"\n正文文件缺失 {len(r['missing_md'])} 条（打开会是空内容）：")
+            for _nid, title in r["missing_md"][:8]:
+                lines.append(f"  · {title}")
+            if len(r["missing_md"]) > 8:
+                lines.append(f"  · 还有 {len(r['missing_md']) - 8} 条…")
+        if r["missing_attachments"]:
+            problems = True
+            lines.append(f"\n引用到但磁盘上没有的图片 {len(r['missing_attachments'])} 个：")
+            for name in r["missing_attachments"][:6]:
+                lines.append(f"  · {name}")
+            if len(r["missing_attachments"]) > 6:
+                lines.append(f"  · 还有 {len(r['missing_attachments']) - 6} 个…")
+        if r["unused_attachments"]:
+            problems = True
+            lines.append(
+                f"\n没有被引用的图片 {len(r['unused_attachments'])} 个"
+                "（可用「清理未使用的图片…」删掉）。"
+            )
+        if not problems:
+            lines.append("\n没有发现问题，数据和文件是对得上的。")
+        info(self, "数据检查", "\n".join(lines))
 
     def clean_attachments(self):
         """删掉 attachments/ 里没有任何笔记引用的图片（粘贴后又删掉文字常会留下）。"""

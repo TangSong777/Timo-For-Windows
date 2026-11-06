@@ -648,6 +648,32 @@ class Library:
                 used.add(m)
         return used
 
+    def audit(self) -> dict:
+        """体检：正文文件缺失 / 引用到但磁盘上没有的附件 / 没人引用的附件。"""
+        missing_md: list[tuple[str, str]] = []
+        missing_att: list[str] = []
+        for n in self.notes.values():
+            if not (self.notes_dir / f"{n.id}.md").exists():
+                missing_md.append((n.id, n.display_title(self.content(n.id)) or "（空白笔记）"))
+            for name in self._ref_names(n):
+                if not self.attachment_path(name).exists() and name not in missing_att:
+                    missing_att.append(name)
+        return {
+            "missing_md": missing_md,
+            "missing_attachments": missing_att,
+            "unused_attachments": self.unused_attachments(),
+            "notes": len(self.notes),
+            "attachments": len([p for p in self.attachments_dir.iterdir() if p.is_file()])
+            if self.attachments_dir.exists()
+            else 0,
+        }
+
+    def _ref_names(self, n: Note) -> set[str]:
+        names = {Path(img.replace("\\", "/")).name for img in n.images}
+        text = self.content(n.id)
+        names.update(re.findall(r"attachments/([^)\]\s\"'<>]+)", text))
+        return names
+
     def unused_attachments(self) -> list[str]:
         """attachments/ 里没被任何笔记引用的文件（粘贴后删掉引用会留下）。"""
         if not self.attachments_dir.exists():
