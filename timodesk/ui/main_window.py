@@ -1,0 +1,606 @@
+"""主窗口：三栏布局 —— 主题侧栏 / 笔记列表 / 编辑器。"""
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+from PyQt5.QtCore import QSize, Qt, QTimer
+from PyQt5.QtGui import QIcon, QKeySequence
+from PyQt5.QtWidgets import (
+    QAction,
+    QApplication,
+    QFileDialog,
+    QHBoxLayout,
+    QInputDialog,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMainWindow,
+    QMenu,
+    QMessageBox,
+    QProgressDialog,
+    QPushButton,
+    QShortcut,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
+)
+
+from ..exporter import export_zip
+from ..importer import import_export
+from ..store import Library, Note, TYPE_LABELS
+from .editor import NoteEditor
+from .theme import C, NOTE_COLORS
+from .widgets import NoteCardDelegate, TopicDelegate, human_time
+
+
+class MainWindow(QMainWindow):
+    def __init__(self, lib: Library, parent=None):
+        super().__init__(parent)
+        self.lib = lib
+        self.view = ("all", None)  # (kind, topic_id)
+        self._pending_save = None
+        self._search_buf = ""
+        self.setWindowTitle("Timo · 本地笔记")
+        self.resize(1280, 830)
+        self.setMinimumSize(980, 620)
+        self._build_ui()
+        self._build_shortcuts()
+        self._save_timer = QTimer(self)
+        self._save_timer.setSingleShot(True)
+        self._save_timer.setInterval(700)
+        self._save_timer.timeout.connect(self._flush_save)
+        self._search_timer = QTimer(self)
+        self._search_timer.setSingleShot(True)
+        self._search_timer.setInterval(220)
+        self._search_timer.timeout.connect(self._apply_search)
+        self.refresh_topics()
+        self.select_nav("all")
+
+    # ---------------- 布局 ----------------
+    def _build_ui(self):
+        central = QWidget(objectName="Root")
+        self.setCentralWidget(central)
+        h = QHBoxLayout(central)
+        h.setContentsMargins(0, 0, 0, 0)
+        h.setSpacing(0)
+
+        # ===== 侧栏 =====
+        sidebar = QWidget(objectName="Sidebar")
+        sidebar.setFixedWidth(220)
+        sb = QVBoxLayout(sidebar)
+        sb.setContentsMargins(12, 16, 10, 12)
+        sb.setSpacing(6)
+
+        brand_row = QHBoxLayout()
+        brand = QLabel("Timo", objectName="Brand")
+        brand_row.addWidget(brand)
+        brand_sub = QLabel("本地笔记", objectName="BrandSub")
+        brand_row.addWidget(brand_sub, alignment=Qt.AlignBottom)
+        brand_row.addStretch(1)
+        sb.addLayout(brand_row)
+        sb.addSpacing(6)
+
+        self.nav = QListWidget(objectName="NavList")
+        self.nav.setFrameShape(QListWidget.NoFrame)
+        self.nav.setFixedHeight(3 * 34 + 6)
+        for key, label, icon in (("all", "全部笔记", "▤"), ("archived", "归档", "▣"), ("trash", "回收站", "♲")):
+            it = QListWidgetItem(f"{icon}  {label}")
+            it.setData(Qt.UserRole, key)
+            it.setSizeHint(QSize(0, 32))
+            self.nav.addItem(it)
+        self.nav.currentRowChanged.connect(self._on_nav_changed)
+        sb.addWidget(self.nav)
+
+        sb.addSpacing(6)
+        sec = QHBoxLayout()
+        sec_label = QLabel("主题", objectName="SideSection")
+        sec.addWidget(sec_label)
+        sec.addStretch(1)
+        btn_add_topic = QToolButton()
+        btn_add_topic.setText("＋")
+        btn_add_topic.setToolTip("新建主题")
+        btn_add_topic.clicked.connect(self.new_topic)
+        sec.addWidget(btn_add_topic)
+        sb.addLayout(sec)
+
+        self.topic_list = QListWidget(objectName="TopicList")
+        self.topic_list.setItemDelegate(TopicDelegate(self.lib, self))
+        self.topic_list.setFrameShape(QListWidget.NoFrame)
+        self.topic_list.setDragDropMode(QListWidget.InternalMove)
+        self.topic_list.setDefaultDropAction(Qt.MoveAction)
+        self.topic_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.topic_list.customContextMenuRequested.connect(self._topic_menu)
+        self.topic_list.currentRowChanged.connect(self._on_topic_changed)
+        sb.addWidget(self.topic_list, 1)
+
+        btn_topic = QPushButton("＋ 新建主题", objectName="NewTopicBtn")
+        btn_topic.clicked.connect(self.new_topic)
+        sb.addWidget(btn_topic)
+
+        bottom = QHBoxLayout()
+        btn_data = QToolButton()
+        btn_data.setText("…")
+        btn_data.setToolTip("数据与设置")
+        menu = QMenu(self)
+        menu.addAction("导入 Timo 导出包（ZIP）…", self.import_zip)
+        menu.addAction("导入文件夹…", self.import_folder)
+        menu.addSeparator()
+        menu.addAction("导出为 Timo ZIP…", self.export_zip)
+        menu.addAction("打开数据目录", self.open_data_dir)
+        menu.addSeparator()
+        menu.addAction("关于 Timo 桌面版", self.show_about)
+        btn_data.setMenu(menu)
+        btn_data.setPopupMode(QToolButton.InstantPopup)
+        bottom.addWidget(btn_data)
+        bottom.addStretch(1)
+        self.total_label = QLabel("")
+        self.total_label.setStyleSheet(f"color:{C['faint']};font-size:11px;")
+        bottom.addWidget(self.total_label)
+        sb.addLayout(bottom)
+        h.addWidget(sidebar)
+
+        # ===== 列表 =====
+        listpane = QWidget(objectName="ListPane")
+        listpane.setFixedWidth(330)
+        lp = QVBoxLayout(listpane)
+        lp.setContentsMargins(16, 16, 12, 10)
+        lp.setSpacing(8)
+
+        head = QHBoxLayout()
+        self.header_label = QLabel("全部笔记", objectName="ListHeader")
+        head.addWidget(self.header_label)
+        self.count_label = QLabel("", objectName="CountLabel")
+        head.addWidget(self.count_label, alignment=Qt.AlignBottom)
+        head.addStretch(1)
+        self.btn_new_note = QPushButton("＋ 新建", objectName="NewNoteBtn")
+        self.btn_new_note.setFixedHeight(32)
+        self.btn_new_note.clicked.connect(self.new_note)
+        head.addWidget(self.btn_new_note)
+        lp.addLayout(head)
+
+        self.search = QLineEdit(objectName="Search")
+        self.search.setPlaceholderText("搜索笔记…  Ctrl+F")
+        self.search.setClearButtonEnabled(True)
+        self.search.textChanged.connect(self._on_search_changed)
+        lp.addWidget(self.search)
+
+        self.note_list = QListWidget(objectName="NoteList")
+        self.note_list.setItemDelegate(NoteCardDelegate(self.lib, self))
+        self.note_list.setFrameShape(QListWidget.NoFrame)
+        self.note_list.setVerticalScrollMode(QListWidget.ScrollPerPixel)
+        self.note_list.setSpacing(0)
+        self.note_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.note_list.customContextMenuRequested.connect(self._note_menu)
+        self.note_list.currentRowChanged.connect(self._on_note_changed)
+        self.note_list.setUniformItemSizes(True)
+        lp.addWidget(self.note_list, 1)
+        h.addWidget(listpane)
+
+        # ===== 编辑器 =====
+        self.editor = NoteEditor(self.lib)
+        self.editor.contentChanged.connect(self._on_content_changed)
+        self.editor.metaChanged.connect(self._on_meta_changed)
+        self.editor.requestNewNote.connect(self.new_note)
+        h.addWidget(self.editor, 1)
+
+        # 底部状态
+        self.statusBar().setStyleSheet(
+            f"QStatusBar{{background:{C['paper']};color:{C['faint']};border-top:1px solid {C['line']};}}"
+            f"QStatusBar::item{{border:none;}}"
+        )
+        self.statusBar().showMessage("")
+
+    def _build_shortcuts(self):
+        for seq, fn in [
+            ("Ctrl+N", self.new_note),
+            ("Ctrl+Shift+N", self.new_topic),
+            ("Ctrl+F", lambda: self.search.setFocus()),
+            ("Ctrl+S", self.save_now),
+            ("Ctrl+E", self._toggle_preview),
+            ("Ctrl+Shift+E", lambda: self.editor.set_mode("edit")),
+        ]:
+            QShortcut(QKeySequence(seq), self, fn)
+
+    # ---------------- 侧栏 ----------------
+    def refresh_topics(self):
+        self.topic_list.blockSignals(True)
+        self.topic_list.clear()
+        topics = [t for t in self.lib.topics.values() if t.state != "trash"]
+        topics.sort(key=lambda t: (t.order, t.created_at))
+        for t in topics:
+            it = QListWidgetItem(t.name)
+            it.setData(Qt.UserRole, t)
+            it.setToolTip(f"{t.name} · {self.lib.note_counts().get(t.id, 0)} 条")
+            self.topic_list.addItem(it)
+        self.topic_list.blockSignals(False)
+        active = sum(1 for n in self.lib.notes.values() if n.state == "active")
+        total = len(self.lib.notes)
+        self.total_label.setText(f"{active} / {total} 条")
+
+    def select_nav(self, kind: str):
+        row = {"all": 0, "archived": 1, "trash": 2}.get(kind, 0)
+        self.nav.setCurrentRow(row)
+
+    def _on_nav_changed(self, row: int):
+        kind = {0: "all", 1: "archived", 2: "trash"}.get(row, "all")
+        self.topic_list.clearSelection()
+        self.topic_list.setCurrentRow(-1)
+        self.view = (kind, None)
+        self._reload_notes()
+
+    def _on_topic_changed(self, row: int):
+        if row < 0:
+            return
+        it = self.topic_list.item(row)
+        if not it:
+            return
+        topic = it.data(Qt.UserRole)
+        self.nav.blockSignals(True)
+        self.nav.setCurrentRow(-1)
+        self.nav.blockSignals(False)
+        self.view = ("topic", topic.id)
+        self._reload_notes()
+
+    def _topic_menu(self, pos):
+        it = self.topic_list.itemAt(pos)
+        if not it:
+            return
+        topic = it.data(Qt.UserRole)
+        menu = QMenu(self)
+        a_new = menu.addAction("在此主题新建笔记")
+        menu.addSeparator()
+        a_rename = menu.addAction("重命名主题…")
+        a_delete = menu.addAction("删除主题")
+        act = menu.exec_(self.topic_list.mapToGlobal(pos))
+        if act is a_new:
+            self.new_note()
+        elif act is a_rename:
+            name, ok = QInputDialog.getText(self, "重命名主题", "主题名称：", text=topic.name)
+            if ok and name.strip():
+                self.lib.rename_topic(topic.id, name.strip())
+                self.lib.save()
+                self.refresh_topics()
+                if self.view == ("topic", topic.id):
+                    self._reload_notes()
+        elif act is a_delete:
+            cnt = self.lib.note_counts().get(topic.id, 0)
+            if cnt:
+                ret = QMessageBox.question(
+                    self,
+                    "删除主题",
+                    f"「{topic.name}」里还有 {cnt} 条笔记，删除主题会把它们一起移到回收站。继续？",
+                )
+                if ret != QMessageBox.Yes:
+                    return
+            self.lib.delete_topic(topic.id)
+            self.lib.save()
+            self.refresh_topics()
+            self.select_nav("all")
+
+    def new_topic(self):
+        name, ok = QInputDialog.getText(self, "新建主题", "主题名称：")
+        if not ok or not name.strip():
+            return
+        t = self.lib.add_topic(name.strip())
+        self.lib.save()
+        self.refresh_topics()
+        for i in range(self.topic_list.count()):
+            if self.topic_list.item(i).data(Qt.UserRole).id == t.id:
+                self.topic_list.setCurrentRow(i)
+                break
+
+    # ---------------- 列表 ----------------
+    def _current_notes(self) -> list[Note]:
+        kind, tid = self.view
+        if kind == "all":
+            return self.lib.sorted_notes(state="active")
+        if kind == "archived":
+            return self.lib.sorted_notes(state="archived")
+        if kind == "trash":
+            return self.lib.sorted_notes(state="trash")
+        t = self.lib.topics.get(tid)
+        state = "archived" if (t and t.state == "archived") else "active"
+        return self.lib.topic_notes(tid, state=state)
+
+    def _reload_notes(self, select_id: str | None = None):
+        kind, tid = self.view
+        title = "全部笔记"
+        if kind == "archived":
+            title = "归档"
+        elif kind == "trash":
+            title = "回收站"
+        elif kind == "topic":
+            t = self.lib.topics.get(tid)
+            title = t.name if t else "主题"
+        self.header_label.setText(title)
+
+        notes = self._current_notes()
+        if self._search_buf:
+            notes = self.lib.search(self._search_buf, pool=notes)
+
+        self.note_list.blockSignals(True)
+        self.note_list.clear()
+        for n in notes:
+            it = QListWidgetItem()
+            it.setData(Qt.UserRole, n.id)
+            it.setSizeHint(QSize(0, 96))
+            self.note_list.addItem(it)
+        self.note_list.blockSignals(False)
+        self.count_label.setText(str(len(notes)) if notes else "")
+
+        # 保留当前选中
+        target = select_id or (self.editor.note.id if self.editor.note else None)
+        found = -1
+        if target:
+            for i in range(self.note_list.count()):
+                if self.note_list.item(i).data(Qt.UserRole) == target:
+                    found = i
+                    break
+        if found >= 0:
+            self.note_list.blockSignals(True)
+            self.note_list.setCurrentRow(found)
+            self.note_list.blockSignals(False)
+            self.editor.set_note(self.lib.notes.get(target))
+        else:
+            self.note_list.blockSignals(True)
+            self.note_list.setCurrentRow(-1)
+            self.note_list.blockSignals(False)
+            self.editor.set_note(None)
+
+    def _on_note_changed(self, row: int):
+        if row < 0:
+            return
+        it = self.note_list.item(row)
+        if not it:
+            return
+        self._flush_save()
+        nid = it.data(Qt.UserRole)
+        note = self.lib.notes.get(nid)
+        self.editor.set_note(note)
+
+    def _note_menu(self, pos):
+        it = self.note_list.itemAt(pos)
+        if not it:
+            return
+        nid = it.data(Qt.UserRole)
+        note = self.lib.notes.get(nid)
+        if not note:
+            return
+        menu = QMenu(self)
+        a_pin = menu.addAction("取消置顶" if note.pinned_at else "置顶")
+        color_menu = menu.addMenu("颜色标记")
+        for name, col in NOTE_COLORS:
+            act = color_menu.addAction(name)
+            act.setData(col)
+            if col == note.color:
+                act.setCheckable(True)
+                act.setChecked(True)
+        menu.addSeparator()
+        a_arch = menu.addAction("取消归档" if note.state == "archived" else "归档")
+        move_menu = menu.addMenu("移动到主题")
+        for t in self.lib.sorted_topics():
+            if t.id != note.topic_id:
+                act = move_menu.addAction(t.name)
+                act.setData(t.id)
+        a_dup = menu.addAction("复制笔记")
+        menu.addSeparator()
+        if note.state == "trash":
+            a_restore = menu.addAction("从回收站恢复")
+        else:
+            a_del = menu.addAction("删除到回收站")
+        act = menu.exec_(self.note_list.mapToGlobal(pos))
+        if act is a_pin:
+            self.lib.toggle_pin(nid)
+        elif act is a_arch:
+            self.lib.archive_note(nid, note.state != "archived")
+        elif act is a_dup:
+            n = self.lib.add_note(note.topic_id, note.type, self.lib.content(nid), note.title)
+            n.url, n.account, n.password, n.remark = note.url, note.account, note.password, note.remark
+            n.date, n.images, n.description = note.date, list(note.images), note.description
+        elif act is a_del:
+            self.lib.delete_note(nid)
+        elif act is a_restore:
+            self.lib.restore_note(nid)
+        elif act and act.parent() is color_menu:
+            self.lib.toggle_color(nid, act.data())
+        elif act and act.parent() is move_menu:
+            self.lib.move_note(nid, act.data())
+        self.lib.save()
+        self.refresh_topics()
+        self._reload_notes()
+
+    # ---------------- 编辑保存 ----------------
+    def new_note(self, note_type: str = "note"):
+        kind, tid = self.view
+        topic_id = tid
+        if kind != "topic" or not topic_id:
+            if not self.lib.topics:
+                self.new_topic()
+                if not self.lib.topics:
+                    return
+            t = self.lib.sorted_topics()[0]
+            topic_id = t.id
+        note = self.lib.add_note(topic_id, note_type, "", None)
+        self.lib.save()
+        self.refresh_topics()
+        if self.view != ("topic", topic_id):
+            self.view = ("topic", topic_id)
+            for i in range(self.topic_list.count()):
+                if self.topic_list.item(i).data(Qt.UserRole).id == topic_id:
+                    self.topic_list.blockSignals(True)
+                    self.topic_list.setCurrentRow(i)
+                    self.topic_list.blockSignals(False)
+                    break
+        self._reload_notes(select_id=note.id)
+        self.editor._content_widget().setFocus()
+
+    def _on_content_changed(self, note_id: str, content: str, title: str):
+        self._pending_save = (note_id, content, title)
+        self._save_timer.start()
+
+    def _on_meta_changed(self):
+        self.refresh_topics()
+        self._reload_notes()
+
+    def _flush_save(self):
+        if not self._pending_save:
+            return
+        note_id, content, title = self._pending_save
+        self._pending_save = None
+        note = self.lib.notes.get(note_id)
+        if not note:
+            return
+        self.lib.set_content(note_id, content)
+        if self.editor.note and self.editor.note.id == note_id:
+            self.editor.flush_note()
+        if note.type == "article" and title is not None:
+            note.title = title.strip() or None
+        self.lib.touch(note_id)
+        self.lib.save()
+        self.editor.mark_saved()
+        self._refresh_item(note_id)
+
+    def save_now(self):
+        self._save_timer.stop()
+        self._flush_save()
+
+    def _refresh_item(self, note_id: str):
+        for i in range(self.note_list.count()):
+            if self.note_list.item(i).data(Qt.UserRole) == note_id:
+                self.note_list.update(self.note_list.indexFromItem(self.note_list.item(i)))
+                break
+
+    def _toggle_preview(self):
+        m = getattr(self.editor, "_mode", "split")
+        self.editor.set_mode("preview" if m != "preview" else "split")
+
+    def _on_search_changed(self, text: str):
+        self._search_buf = text.strip()
+        self._search_timer.start()
+
+    def _apply_search(self):
+        self._reload_notes()
+
+    # ---------------- 数据操作 ----------------
+    def import_zip(self):
+        path, _ = QFileDialog.getOpenFileName(self, "导入 Timo 导出包", "", "Timo 导出 (*.zip);;所有文件 (*)")
+        if not path:
+            return
+        self._do_import(path)
+
+    def import_folder(self):
+        path = QFileDialog.getExistingDirectory(self, "选择导出文件夹（含 manifest.json）")
+        if not path:
+            return
+        self._do_import(path)
+
+    def _do_import(self, path: str):
+        if self.lib.notes:
+            ret = QMessageBox.question(
+                self,
+                "导入数据",
+                "导入会用包里的内容替换当前库（现有笔记会先备份到 backup 目录）。继续？",
+            )
+            if ret != QMessageBox.Yes:
+                return
+        dlg = QProgressDialog("正在导入…", "取消", 0, 100, self)
+        dlg.setWindowTitle("导入 Timo 数据")
+        dlg.setWindowModality(Qt.WindowModal)
+        dlg.setMinimumDuration(300)
+
+        def progress(done: int, total: int):
+            dlg.setMaximum(total)
+            dlg.setValue(done)
+            QApplication.processEvents()
+            if dlg.wasCanceled():
+                raise RuntimeError("用户取消")
+
+        try:
+            backup = self._backup_current()
+            report = import_export(path, self.lib, progress=progress)
+            self.lib.save()
+        except Exception as e:  # noqa: BLE001
+            dlg.close()
+            QMessageBox.critical(self, "导入失败", f"{e}")
+            return
+        dlg.close()
+        self.refresh_topics()
+        self.select_nav("all")
+        msg = f"导入完成：{report.topics} 个主题、{report.notes} 条笔记、{report.attachments} 个附件。"
+        if report.missing_attachments:
+            msg += f"\n有 {len(report.missing_attachments)} 个附件缺失。"
+        if report.warnings:
+            msg += "\n" + "\n".join(report.warnings[:5])
+        if backup:
+            msg += f"\n原数据已备份到：{backup}"
+        QMessageBox.information(self, "导入完成", msg)
+
+    def _backup_current(self) -> Path | None:
+        if not self.lib.notes:
+            return None
+        import time
+
+        bdir = self.lib.root / "backup" / time.strftime("%Y%m%d-%H%M%S")
+        bdir.mkdir(parents=True, exist_ok=True)
+        import shutil
+
+        if self.lib.meta_path.exists():
+            shutil.copy2(self.lib.meta_path, bdir / "library.json")
+        if self.lib.notes_dir.exists():
+            shutil.copytree(self.lib.notes_dir, bdir / "notes")
+        if self.lib.attachments_dir.exists():
+            shutil.copytree(self.lib.attachments_dir, bdir / "attachments")
+        return bdir
+
+    def export_zip(self):
+        path, _ = QFileDialog.getSaveFileName(
+            self, "导出为 Timo ZIP", f"Timo_Desktop_Export_{_stamp()}.zip", "ZIP (*.zip)"
+        )
+        if not path:
+            return
+        try:
+            out, counts = export_zip(self.lib, path)
+        except Exception as e:  # noqa: BLE001
+            QMessageBox.critical(self, "导出失败", str(e))
+            return
+        QMessageBox.information(
+            self,
+            "导出完成",
+            f"已导出到：\n{out}\n\n{counts['topics']} 个主题、{counts['documents']} 条笔记、{counts['attachments']} 个附件。",
+        )
+
+    def open_data_dir(self):
+        from PyQt5.QtGui import QDesktopServices
+        from PyQt5.QtCore import QUrl
+
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.lib.root)))
+
+    def show_about(self):
+        from timodesk import __version__
+
+        QMessageBox.about(
+            self,
+            "关于 Timo 桌面版",
+            f"<h3>Timo 桌面版 {__version__}</h3>"
+            "<p>Windows 本地笔记软件，可导入 Timo（Android）导出的数据包，"
+            "数据全部保存在本机，不需要账号，也不联网。</p>"
+            f"<p style='color:{C['muted']}'>数据目录：{self.lib.root}</p>"
+            "<p>笔记以 Markdown 文件保存，随时可以导出为 Timo 兼容的 ZIP。</p>",
+        )
+
+    def closeEvent(self, e):  # noqa: N802
+        self.save_now()
+        self.lib.save()
+        super().closeEvent(e)
+
+
+class _UnusedNavDelegate:
+    """占位，保留旧结构引用。"""
+
+
+def _stamp() -> str:
+    import time
+
+    return time.strftime("%Y%m%d_%H%M%S")

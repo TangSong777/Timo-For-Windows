@@ -1,0 +1,75 @@
+"""Markdown 渲染：把笔记正文转成预览用的 HTML。
+
+Timo 只支持「简单 Markdown」，这里按便签的阅读习惯放宽一点：
+换行即断行（nl2br），支持标题、粗斜体、列表、待办、引用、代码、表格、图片和链接。
+"""
+from __future__ import annotations
+
+import html
+import re
+from pathlib import Path
+
+import markdown
+
+TASK_RE = re.compile(r"^(\s*(?:[-*+]|\d+\.)\s+)\[([ xX])\]\s+", re.M)
+
+
+def _render_tasks(text: str) -> str:
+    """把 - [ ] / - [x] 变成可读的方框符号（预览不可交互）。"""
+    return TASK_RE.sub(lambda m: f"{m.group(1)}{'☑' if m.group(2).lower() == 'x' else '☐'} ", text)
+
+
+def _abs_images(html_text: str, root: Path) -> str:
+    """把 attachments/xxx 的相对图片路径换成绝对 file:// URI，保证预览能显示。"""
+
+    def repl(m: re.Match) -> str:
+        src = m.group(1)
+        if re.match(r"^(https?:|file:|data:|qrc:)", src):
+            return m.group(0)
+        p = (root / src).resolve()
+        try:
+            uri = p.as_uri()
+        except ValueError:
+            return m.group(0)
+        return f'src="{uri}"'
+
+    return re.sub(r'src="([^"]+)"', repl, html_text)
+
+
+CSS = """
+body { color:#1f1f1f; font-family:"Microsoft YaHei","Segoe UI",sans-serif; font-size:15px;
+       line-height:1.85; margin:0; }
+h1 { font-size:24px; font-weight:600; margin:22px 0 10px; }
+h2 { font-size:19px; font-weight:600; margin:18px 0 8px; }
+h3 { font-size:16px; font-weight:600; margin:14px 0 6px; color:#3f3f3f; }
+p { margin: 8px 0; }
+a { color:#1f1f1f; text-decoration:underline; text-decoration-color:#c9c9c9; }
+blockquote { margin:10px 0; padding:6px 14px; border-left:3px solid #d6d6d6; color:#5c5c5c;
+             background:#f7f7f7; border-radius:0 8px 8px 0; }
+code { background:#f2f2f2; padding:1px 5px; border-radius:4px;
+       font-family:"Cascadia Code",Consolas,monospace; font-size:13px; color:#333; }
+pre { background:#f7f7f7; padding:12px 14px; border-radius:8px; border:1px solid #ececec; }
+pre code { background:transparent; padding:0; }
+ul, ol { margin:8px 0; padding-left:24px; }
+li { margin:3px 0; }
+hr { border:none; border-top:1px solid #ececec; margin:18px 0; }
+img { max-width:100%; border-radius:8px; margin:6px 0; }
+table { border-collapse:collapse; margin:10px 0; }
+th, td { border:1px solid #e4e4e4; padding:6px 10px; }
+th { background:#f4f4f4; font-weight:600; }
+.empty { color:#a3a3a3; }
+"""
+
+
+def render(text: str, root: str | Path, empty_hint: str = "开始写点什么……") -> str:
+    body = text or ""
+    if not body.strip():
+        return f'<html><head><style>{CSS}</style></head><body><p class="empty">{html.escape(empty_hint)}</p></body></html>'
+    body = _render_tasks(body)
+    md = markdown.Markdown(
+        extensions=["fenced_code", "tables", "nl2br", "sane_lists"],
+        output_format="html5",
+    )
+    inner = md.convert(body)
+    inner = _abs_images(inner, Path(root))
+    return f"<html><head><meta charset='utf-8'><style>{CSS}</style></head><body>{inner}</body></html>"
