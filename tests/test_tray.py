@@ -10,7 +10,7 @@ from timodesk.ui.main_window import MainWindow
 from timodesk.ui.theme import app_qss
 from timodesk.ui.tray import TrayIcon
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parents[1]
 app = QApplication(sys.argv)
 app.setStyleSheet(app_qss())
 app.setQuitOnLastWindowClosed(False)

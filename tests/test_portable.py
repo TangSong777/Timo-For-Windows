@@ -6,7 +6,7 @@ from ctypes import WINFUNCTYPE, windll, wintypes
 from pathlib import Path
 
 TARGET = Path(sys.argv[1] if len(sys.argv) > 1 else
-              Path(__file__).parent / "dist" / "Timo For Windows")
+              Path(__file__).resolve().parents[1] / "dist" / "Timo For Windows")
 EXE = TARGET / "Timo For Windows.exe"
 
 proc = subprocess.Popen([str(EXE)], cwd=str(TARGET))
