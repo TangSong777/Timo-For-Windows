@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import os
 import re
@@ -26,6 +27,7 @@ class ImportReport:
     skipped: int = 0
     mode: str = "replace"
     renamed: int = 0
+    deduped: int = 0
 
     def summary(self) -> str:
         if self.mode == "merge":
@@ -36,9 +38,37 @@ class ImportReport:
                 s += f"\n{self.renamed} 个同名主题已自动加序号区分"
         else:
             s = f"导入完成：{self.topics} 个主题、{self.notes} 条笔记、{self.attachments} 个附件"
+        if self.deduped:
+            s += f"\n跳过 {self.deduped} 条内容重复的笔记"
         if self.missing_attachments:
             s += f"\n缺失附件 {len(self.missing_attachments)} 个"
         return s
+
+
+def _dedupe_key(note: Note, content: str) -> str:
+    """「是不是同一条笔记」的指纹：类型 + 正文 + 该类型的专有字段。
+
+    只比正文会把所有图库、链接误判成重复（它们的 content 是空的），
+    所以按类型把各自的字段也带上。
+    """
+    payload = json.dumps(
+        [
+            note.type,
+            (note.title or "").strip(),
+            _norm_newlines(content or "").strip(),
+            (note.description or "").strip(),
+            note.url or "",
+            note.account or "",
+            note.password or "",
+            note.remark or "",
+            list(note.images or []),
+            dict(sorted((note.date or {}).items())),
+        ],
+        ensure_ascii=False,
+        sort_keys=True,
+        default=str,
+    )
+    return hashlib.sha1(payload.encode("utf-8")).hexdigest()
 
 
 def _fix_zip_name(info: zipfile.ZipInfo) -> str:
@@ -119,7 +149,8 @@ def _load_account_passwords(root: Path) -> dict[str, dict]:
     return out
 
 
-def import_export(src: str | os.PathLike, lib: Library, progress=None, mode: str = "replace") -> ImportReport:
+def import_export(src: str | os.PathLike, lib: Library, progress=None, mode: str = "replace",
+                  dedupe: bool = True) -> ImportReport:
     """导入 Timo 导出包。
 
     mode="replace"：清空现有内容后整体替换。
@@ -142,6 +173,12 @@ def import_export(src: str | os.PathLike, lib: Library, progress=None, mode: str
         passwords = _load_account_passwords(root)
 
         merge = mode == "merge"
+        # 内容指纹：替换导入只比对包内，合并导入还要跟库里已有的笔记比
+        seen: set[str] = set()
+        if dedupe and merge:
+            for existing in lib.notes.values():
+                if existing.state != "trash":
+                    seen.add(_dedupe_key(existing, lib.content(existing.id)))
         base_order = max((t.order for t in lib.topics.values()), default=-1.0) + 1 if merge else 0.0
         if not merge:
             # 清空目标库
@@ -311,6 +348,14 @@ def import_export(src: str | os.PathLike, lib: Library, progress=None, mode: str
                 date=date_info,
                 order=float(idx),
             )
+            if dedupe:
+                key = _dedupe_key(note, content)
+                if key in seen:
+                    report.deduped += 1
+                    if progress and (idx % 25 == 0 or idx == total - 1):
+                        progress(idx + 1, total)
+                    continue
+                seen.add(key)
             # 主题不存在时挂到一个占位主题，避免丢数据
             if note.topic_id not in lib.topics:
                 placeholder = "00000000-0000-0000-0000-000000000000"
