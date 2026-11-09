@@ -46,7 +46,7 @@ from ..exporter import export_zip, note_markdown
 from ..settings import Settings
 from ..importer import import_export
 from ..store import NOTE_TYPES, TYPE_LABELS, Library, Note
-from .dialogs import ProgressDialog, confirm, error, info
+from .dialogs import DuplicatesDialog, ProgressDialog, confirm, error, info
 from .editor import NoteEditor
 from .theme import C, NOTE_COLORS, app_qss, color_icon, resolve as resolve_theme, set_mode as set_theme_mode
 
@@ -238,6 +238,7 @@ class MainWindow(QMainWindow):
         menu.addAction("清空回收站…", self.empty_trash)
         menu.addAction("清理未使用的图片…", self.clean_attachments)
         menu.addAction("检查数据完整性…", self.audit_data)
+        menu.addAction("查找重复笔记…", self.dedupe_dialog)
         menu.addSeparator()
         appearance = menu.addMenu("外观")
         grp = QActionGroup(self)
@@ -1229,6 +1230,24 @@ class MainWindow(QMainWindow):
         want_sort = dlg.cmb_sort.currentData()
         if want_sort != getattr(self, "sort_mode", "updated"):
             self.set_sort(want_sort)
+
+    def dedupe_dialog(self):
+        """找出正文完全相同的笔记，勾选后移到回收站。"""
+        self._flush_save()
+        groups = self.lib.duplicate_groups()
+        if not groups:
+            info(self, "没有发现重复笔记", "所有笔记的正文都不相同。")
+            return
+        dlg = DuplicatesDialog(self, self.lib, groups)
+        if not dlg.exec_():
+            return
+        ids = dlg.to_delete()
+        if not ids:
+            return
+        n = self.lib.delete_notes(ids)
+        self.refresh_topics()
+        self._reload_notes()
+        self._toast(f"已把 {n} 条重复笔记移到回收站")
 
     def audit_data(self):
         """看看正文文件、附件跟 library.json 对不对得上。"""

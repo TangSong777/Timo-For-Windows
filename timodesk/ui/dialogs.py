@@ -6,6 +6,9 @@ from pathlib import Path
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
     QHBoxLayout,
+    QHeaderView,
+    QTreeWidget,
+    QTreeWidgetItem,
     QLabel,
     QLineEdit,
     QProgressBar,
@@ -713,3 +716,157 @@ class TrashTopicsDialog(FramelessDialog):
         self.changed = True
         self._reload()
         info(self, "已删除", f"主题与 {n} 条笔记已永久删除。")
+
+
+class DuplicatesDialog(FramelessDialog):
+    """列出正文重复的笔记，勾选要移到回收站的条目。"""
+
+    def __init__(self, parent, lib, groups) -> None:
+        super().__init__(parent, "查找重复笔记")
+        self.lib = lib
+        self.groups = groups
+        self._to_delete: list[str] = []
+        self.setFixedSize(640, 500)
+
+        lay = QVBoxLayout(self.body)
+        lay.setContentsMargins(24, 18, 24, 18)
+        lay.setSpacing(10)
+
+        head = QLabel("下面的笔记正文完全相同，勾选的会被移到回收站。")
+        head.setObjectName("FieldLabel")
+        head.setWordWrap(True)
+        lay.addWidget(head)
+
+        self.tree = QTreeWidget()
+        self.tree.setObjectName("DupeTree")
+        self.tree.setHeaderLabels(["笔记", "主题", "时间"])
+        self.tree.setRootIsDecorated(True)
+        self.tree.setUniformRowHeights(True)
+        self.tree.header().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.tree.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.tree.header().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.tree.setStyleSheet(
+            f"QTreeWidget#DupeTree{{background:{C['card']};border:1px solid {C['card_border']};"
+            f"border-radius:10px;padding:4px;}}"
+            f"QTreeWidget#DupeTree::item{{height:26px;}}"
+            f"QTreeWidget#DupeTree::item:selected{{background:{C['hover_bg']};color:{C['ink']};}}"
+            # 复选框也走黑白灰，不用系统默认的蓝色方块
+            f"QTreeWidget#DupeTree::indicator{{width:13px;height:13px;border:1px solid {C['card_border_strong']};"
+            f"border-radius:3px;background:{C['card']};}}"
+            f"QTreeWidget#DupeTree::indicator:checked{{background:{C['ink']};"
+            f"border-color:{C['ink']};}}"
+        )
+        self.tree.header().setStyleSheet(
+            f"QHeaderView::section{{background:{C['hover_bg']};border:none;color:{C['muted']};"
+            f"padding:5px 6px;font-size:11px;}}"
+        )
+        lay.addWidget(self.tree, 1)
+
+        self.count_label = QLabel("")
+        self.count_label.setObjectName("FieldLabel")
+        lay.addWidget(self.count_label)
+
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        btn_all = _button("全选重复项", "Plain")
+        btn_all.clicked.connect(self._check_all)
+        btn_none = _button("全不选", "Plain")
+        btn_none.clicked.connect(self._uncheck_all)
+        row.addWidget(btn_all)
+        row.addWidget(btn_none)
+        row.addStretch(1)
+        cancel = _button("取消", "Link")
+        cancel.clicked.connect(self.reject)
+        row.addWidget(cancel)
+        self.btn_ok = _button("移到回收站", "Primary")
+        self.btn_ok.clicked.connect(self._accept)
+        row.addWidget(self.btn_ok)
+        lay.addLayout(row)
+
+        self._fill()
+        self.tree.itemChanged.connect(self._on_item_changed)
+        self._refresh_count()
+        self.add_edge()
+
+    # --- 构建 ---------------------------------------------------------
+    def _fill(self) -> None:
+        for group in self.groups:
+            first = group[0]
+            title = first.display_title(self.lib.content(first.id))
+            top = QTreeWidgetItem([f"{len(group)} 条重复 · {title}", "", ""])
+            top.setFlags(Qt.ItemIsEnabled)
+            self.tree.addTopLevelItem(top)
+            for i, note in enumerate(group):
+                topic = self.lib.topics.get(note.topic_id)
+                child = QTreeWidgetItem(
+                    [
+                        note.display_title(self.lib.content(note.id)),
+                        topic.name if topic else "（未分类）",
+                        (note.created_at or "")[:10],
+                    ]
+                )
+                child.setData(0, Qt.UserRole, note.id)
+                child.setFlags(Qt.ItemIsEnabled | Qt.ItemIsUserCheckable | Qt.ItemIsSelectable)
+                # 默认保留最早的一条，其余勾上
+                child.setCheckState(0, Qt.Unchecked if i == 0 else Qt.Checked)
+                top.addChild(child)
+            top.setExpanded(True)
+
+    # --- 交互 ---------------------------------------------------------
+    def _iter_items(self):
+        for i in range(self.tree.topLevelItemCount()):
+            top = self.tree.topLevelItem(i)
+            for j in range(top.childCount()):
+                yield top.child(j)
+
+    def _on_item_changed(self, _item, _col) -> None:
+        self._refresh_count()
+
+    def _check_all(self) -> None:
+        self.tree.blockSignals(True)
+        for i in range(self.tree.topLevelItemCount()):
+            top = self.tree.topLevelItem(i)
+            for j in range(1, top.childCount()):
+                top.child(j).setCheckState(0, Qt.Checked)
+        self.tree.blockSignals(False)
+        self._refresh_count()
+
+    def _uncheck_all(self) -> None:
+        self.tree.blockSignals(True)
+        for item in self._iter_items():
+            item.setCheckState(0, Qt.Unchecked)
+        self.tree.blockSignals(False)
+        self._refresh_count()
+
+    def _refresh_count(self) -> None:
+        n = sum(1 for item in self._iter_items() if item.checkState(0) == Qt.Checked)
+        self.btn_ok.setText(f"移到回收站（{n} 条）" if n else "移到回收站")
+        self.btn_ok.setEnabled(n > 0)
+        if not n:
+            self.count_label.setText("没有勾选任何笔记")
+        else:
+            # 每组至少要留一条
+            warn = False
+            for i in range(self.tree.topLevelItemCount()):
+                top = self.tree.topLevelItem(i)
+                if top.childCount() and all(
+                    top.child(j).checkState(0) == Qt.Checked for j in range(top.childCount())
+                ):
+                    warn = True
+                    break
+            self.count_label.setText(
+                "提示：有一组的笔记被全部勾选，删除后这组内容只存在于回收站里。"
+                if warn
+                else f"已勾选 {n} 条"
+            )
+
+    def _accept(self) -> None:
+        self._to_delete = [
+            item.data(0, Qt.UserRole) for item in self._iter_items() if item.checkState(0) == Qt.Checked
+        ]
+        if not self._to_delete:
+            return
+        self.accept()
+
+    def to_delete(self) -> list[str]:
+        return list(self._to_delete)

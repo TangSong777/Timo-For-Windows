@@ -10,6 +10,7 @@
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -48,6 +49,22 @@ def _replace_retry(tmp: Path, target: Path, attempts: int = 6) -> None:
             if attempt == attempts - 1:
                 raise
             time.sleep(0.05 * (attempt + 1))
+
+
+def _content_key(text: str) -> str:
+    """把正文归一化成判重用的指纹。
+
+    统一换行、去掉每行首尾空白、丢掉空行 —— 于是「粘贴时多/少一个空行」
+    仍然算同一条，而「a b」与「ab」仍算不同。
+    """
+    body = "\n".join(
+        line.strip()
+        for line in (text or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
+        if line.strip()
+    )
+    if not body:
+        return ""
+    return hashlib.sha1(body.encode("utf-8")).hexdigest()
 
 
 def now_iso() -> str:
@@ -508,6 +525,47 @@ class Library:
             n.state = "trash"
             n.deleted_at = now_iso()
         self.save()
+
+    def delete_notes(self, note_ids, hard: bool = False) -> int:
+        """批量删除（只写一次盘）。"""
+        n = 0
+        for note_id in note_ids:
+            note = self.notes.get(note_id)
+            if not note:
+                continue
+            if hard:
+                self.notes.pop(note_id, None)
+                self._content.pop(note_id, None)
+                p = self.note_path(note_id)
+                if p.exists():
+                    p.unlink()
+            else:
+                note.state = "trash"
+                note.deleted_at = now_iso()
+            n += 1
+        if n:
+            self.save()
+        return n
+
+    def duplicate_groups(self, min_chars: int = 1) -> list[list[Note]]:
+        """按正文内容找重复笔记，返回分组（每组按创建时间升序，组按条数降序）。
+
+        正文先做「去掉行尾空白、合并连续空行」的归一化，避免同一个内容
+        因为换行差异被判成不同；回收站里的笔记不参与。
+        """
+        buckets: dict[str, list[Note]] = {}
+        for note in self.notes.values():
+            if note.state == "trash":
+                continue
+            key = _content_key(self.content(note.id))
+            if len(key) < min_chars:
+                continue
+            buckets.setdefault(key, []).append(note)
+        groups = [g for g in buckets.values() if len(g) > 1]
+        for g in groups:
+            g.sort(key=lambda n: (n.created_at or "", n.id))
+        groups.sort(key=lambda g: (-len(g), g[0].created_at or ""))
+        return groups
 
     def inbox_topic_id(self) -> str:
         """找（或建）一个用来收留「主题已被删掉」的笔记的占位主题。"""
