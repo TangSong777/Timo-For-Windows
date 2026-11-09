@@ -12,7 +12,7 @@ from timodesk.store import Library
 
 app = QApplication(sys.argv)
 
-for d in ("worklib_dd_a", "worklib_dd_b", "worklib_dd_c"):
+for d in ("worklib_dd_a", "worklib_dd_b", "worklib_dd_c", "worklib_dd_e"):
     shutil.rmtree(d, ignore_errors=True)
 
 # 源库：两条一模一样的便签（模拟包里有错），外加不同类型但字段不同的笔记
@@ -74,6 +74,16 @@ check("库里共 6 条", len(c.notes) == 6)
 d = Library("worklib_dd_b").load()
 r4 = import_export(zip_path, d, mode="replace", dedupe=False)
 check("dedupe=False 时保留包内重复", r4.deduped == 0 and len(d.notes) == 7)
+
+# 5. 库里那条已经进了回收站，也不该再造一份出来
+e = Library("worklib_dd_e").load()
+te = e.add_topic("工作")
+ne = e.add_note(te.id, "note", content="一模一样的内容")
+ne.state = "trash"
+e.save()
+r5 = import_export(zip_path, e, mode="merge")
+check("回收站里的同内容也算重复", r5.deduped == 2 and r5.notes == 5)
+check("回收站里仍只有那 1 条", len(e.notes) == 6)
 
 print(f"\n{ok}/{total} 通过")
 sys.exit(0 if ok == total else 1)

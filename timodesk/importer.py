@@ -173,12 +173,12 @@ def import_export(src: str | os.PathLike, lib: Library, progress=None, mode: str
         passwords = _load_account_passwords(root)
 
         merge = mode == "merge"
-        # 内容指纹：替换导入只比对包内，合并导入还要跟库里已有的笔记比
+        # 内容指纹：替换导入只比对包内，合并导入还要跟库里已有的笔记比。
+        # 回收站里的也算（否则「两条都在回收站」时会给其中一条再造一份）。
         seen: set[str] = set()
         if dedupe and merge:
             for existing in lib.notes.values():
-                if existing.state != "trash":
-                    seen.add(_dedupe_key(existing, lib.content(existing.id)))
+                seen.add(_dedupe_key(existing, lib.content(existing.id)))
         base_order = max((t.order for t in lib.topics.values()), default=-1.0) + 1 if merge else 0.0
         if not merge:
             # 清空目标库
